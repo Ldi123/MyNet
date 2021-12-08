@@ -15,13 +15,13 @@ cd docs/.vuepress/dist
 if [ -z "$GITHUB_TOKEN" ]; then
   msg='deploy'
   githubUrl=git@github.com:Ldi123/MyNet.git
-  git config --global user.name "Lid123"
-  git config --global user.email "2694494031@qq.com"
+  git config --global user.name "di"
+  git config --global user.email "abc@hidi.uu.me"
 else
   msg='来自github actions的自动部署'
   githubUrl=https://Ldi123:${GITHUB_TOKEN}@github.com/Ldi123/MyNet.git
-  git config --global user.name "Lid123"
-  git config --global user.email "2694494031@qq.com"
+  git config --global user.name "di"
+  git config --global user.email "abc@hidi.uu.me"
 fi
 git init
 git add -A
