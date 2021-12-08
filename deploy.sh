@@ -19,7 +19,7 @@ if [ -z "$GITHUB_TOKEN" ]; then
   git config --global user.email "abc@hidi.uu.me"
 else
   msg='来自github actions的自动部署'
-  githubUrl=https://Ldi123:${GITHUB_TOKEN}@github.com/Ldi123/MyNet.git
+  githubUrl=https://di:${GITHUB_TOKEN}@github.com/Ldi123/MyNet.git
   git config --global user.name "di"
   git config --global user.email "abc@hidi.uu.me"
 fi
