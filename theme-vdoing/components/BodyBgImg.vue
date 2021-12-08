@@ -30,7 +30,7 @@ export default {
           count = 0
         }
         this.bgImg = bodyBgImg[count]
-      }, 15000);
+      }, 900000);
     }
 
     if (bodyBgImgOpacity !== undefined) {
