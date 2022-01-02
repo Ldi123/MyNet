@@ -13,7 +13,7 @@ docs/.vuepress/dist
 
 # 百度链接推送
 urls.txt
-baiduPush.yml
+.github/workflows/baiduPush.yml
 
 # mac
 .DS_Store
