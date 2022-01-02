@@ -7,12 +7,12 @@ module.exports = {
   nav,
   sidebarDepth: 2, // 侧边栏显示深度，默认1，最大2（显示到h3标题）
   logo: '/img/my-logo.png', // 导航栏logo
-  repo: 'ldi123/MyNet', // 导航栏右侧生成Github链接
+  // repo: 'ldi123/MyNet', // 导航栏右侧生成Github链接
   searchMaxSuggestions: 10, // 搜索结果显示最大数
   lastUpdated: '上次更新', // 开启更新时间，并配置前缀文字   string | boolean (取值为git提交时间)
-  docsDir: 'docs', // 编辑的文件夹
-  editLinks: true, // 启用编辑
-  editLinkText: '编辑',
+  // docsDir: 'docs', // 编辑的文件夹
+  // editLinks: true, // 启用编辑
+  // editLinkText: '编辑',
   //*** 以下配置是Vdoing主题改动和新增的配置 ***//
 
   // category: false, // 是否打开分类功能，默认true。 如打开，会做的事情有：1. 自动生成的frontmatter包含分类字段 2.页面中显示与分类相关的信息和模块 3.自动生成分类页面（在@pages文件夹）。如关闭，则反之。
