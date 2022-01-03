@@ -1,6 +1,7 @@
 // nav
 module.exports = [
   { text: '首页', link: '/' },
+  { text: '图库', link: 'http://114.55.7.136:6099/' },
   {
     text: '博客',
     link: '/blog/', //目录页链接，此处link是vdoing主题新增的配置项，有二级导航时，可以点击一级导航跳到目录页
@@ -34,6 +35,7 @@ module.exports = [
     text: '更多',
     link: '/more/',
     items: [
+	  {text:'常用网站',link:'/pages/2ff955/'},
       { text: '学习', link: '/pages/0ce1f5/' },
       // { text: '生活', link: '/pages/aea6571b7a8bae86/' },
       { text: '心情', link: '/pages/516fb5/' },
