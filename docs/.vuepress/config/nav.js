@@ -17,7 +17,7 @@ module.exports = [
       {
         text: '学习笔记',
         items: [
-          { text: '《Vue》笔记', link: '/note/vue/' },
+          { text: 'Vue笔记', link: '/note/vue/' },
         ],
       },
     ],
