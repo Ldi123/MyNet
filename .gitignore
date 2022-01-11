@@ -17,3 +17,6 @@ baiduPush.yml
 
 # mac
 .DS_Store
+
+# 自定义代码提交脚本
+up_essay.sh
