@@ -8,7 +8,7 @@ module.exports = {
 
   title: "IamDi",
   description: '简洁、易用的博客系统',
-  base: '/me/', // 格式：'/<仓库名>/'， 默认'/'
+  base: '/MyNet/', // 格式：'/<仓库名>/'， 默认'/'
   markdown: {
     lineNumbers: true, // 代码行号
   },
