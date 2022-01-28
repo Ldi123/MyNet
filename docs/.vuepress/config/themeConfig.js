@@ -52,7 +52,7 @@ module.exports = {
   },
   blogger: {
     // 博主信息，显示在首页侧边栏
-    avatar: '/img/info.png',
+    avatar: 'https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/2022素材/pexels-jess-loiterton-4319752.1w68c075lu74.jpg',
     name: 'ldi',
     slogan: '喜欢折腾！',
   },
