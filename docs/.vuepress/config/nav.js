@@ -1,7 +1,14 @@
 // nav
 module.exports = [
   { text: '首页', link: '/' },
-  { text: '图库', link: 'http://114.55.7.136:6099/' },
+	{
+		text:'网站',
+		items:[
+		  { text:'图库', link: 'http://114.55.7.136:6099/' },
+			{text:'资源库',link:'http://hidi.ys168.com/'},
+			{text:'2020旧版网站',link:'https://ldi123.tk/'},
+		],
+	},
   {
     text: '博客',
     link: '/blog/', //目录页链接，此处link是vdoing主题新增的配置项，有二级导航时，可以点击一级导航跳到目录页
@@ -20,15 +27,14 @@ module.exports = [
           { text: 'Vue笔记', link: '/note/vue/' },
         ],
       },
-    ],
-  },
-
-  {
-    text: '技术',
-    link: '/technology/',
-    items: [
-      { text: '技术文档', link: '/pages/ce176b/' },
-      { text: '博客搭建', link: '/pages/075c25/' },
+			{
+				text: '技术',
+				link: '/technology/',
+				items: [
+					{ text: '技术文档', link: '/pages/ce176b/' },
+					{ text: '博客搭建', link: '/pages/075c25/' },
+				],
+			},
     ],
   },
   {
@@ -37,7 +43,7 @@ module.exports = [
     items: [
 	  {text:'常用网站',link:'/pages/2ff955/'},
       { text: '学习', link: '/pages/0ce1f5/' },
-      // { text: '生活', link: '/pages/aea6571b7a8bae86/' },
+      { text: '生活', link: '/pages/e6661d/' },
       { text: '心情', link: '/pages/516fb5/' },
       { text: '实用技巧', link: '/pages/686283/' },
       { text: '友情链接', link: '/pages/2f2b3d/' },
