@@ -23,18 +23,38 @@
       | Copyright © {{ footer.createYear }}-{{ new Date().getFullYear() }}
       <span v-html="footer.copyrightInfo"></span>
     </template>
+		<div style="color: #1685a9;font-size:large;font-weight:bolder;">截至本次打开，小站坚强的运行了{{day}}天{{hours}}时{{minutes}}分{{seconds}}秒</div>
   </div>
 </template>
 
 <script>
+import moment from 'moment';
+let startTime='2021-12-08 00:00:00';
 export default {
+	data() {
+		return {
+			day:moment(new Date().getTime()).diff(new Date(startTime).getTime(), 'days'),
+			hour:moment(new Date().getTime()).diff(new Date(startTime).getTime(), 'hours'),
+			minute:moment(new Date().getTime()).diff(new Date(startTime).getTime(), 'minutes'),
+			second:moment(new Date().getTime()).diff(new Date(startTime).getTime(), 'seconds'),
+		}
+	},
   computed: {
     social() {
       return this.$themeConfig.social
     },
     footer() {
       return this.$themeConfig.footer
-    }
+    },
+		hours(){
+			return this.hour-this.day*24
+		},
+		minutes(){
+			return this.minute-this.hour*60
+		},
+		seconds(){
+			return (this.second-this.minute*60)%1000
+		}
   }
 }
 </script>
