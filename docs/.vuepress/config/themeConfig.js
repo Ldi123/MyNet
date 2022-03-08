@@ -52,7 +52,7 @@ module.exports = {
   },
   blogger: {
     // 博主信息，显示在首页侧边栏
-    avatar: 'https://thirdwx.qlogo.cn/mmopen/vi_32/OUCO4yHsnBqLibFl5wxW9EUnpiblrcPE24alqyhWZNtQKbqM75H8ACfm9GTHyFcpsZ7yLVWOILAI2aCN2ZOMu03w/132',
+    avatar: 'https://api.123home.page/api.php?category=animal',
     name: 'ldi',
     slogan: '喜欢折腾！',
   },
