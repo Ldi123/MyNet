@@ -52,7 +52,7 @@ module.exports = {
   },
   blogger: {
     // 博主信息，显示在首页侧边栏
-    avatar: 'https://api.123home.page/api.php?category=animal',
+    avatar: 'https://api.123home.page/api.php?category=visual',
     name: 'ldi',
     slogan: '喜欢折腾！',
   },
