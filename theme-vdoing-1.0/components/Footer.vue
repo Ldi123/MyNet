@@ -23,7 +23,7 @@
       | Copyright © {{ footer.createYear }}-{{ new Date().getFullYear() }}
       <span v-html="footer.copyrightInfo"></span>
     </template>
-		<div style="color: #1685a9;font-size:large;font-weight:bolder;">截至本次打开，小站坚强的运行了{{day}}天{{hours}}时{{minutes}}分{{seconds}}秒</div>
+		<div style="color: #1685a9;font-size:large;font-weight:bolder;">截至本次打开，网站已运行{{day}}天{{hours}}时{{minutes}}分{{seconds}}秒</div>
   </div>
 </template>
 
