@@ -11,6 +11,12 @@
       ></a>
     </div>
 
+		<!-- 网站访问量统计 -->
+		<div>
+		本站总访问量 <span id="busuanzi_value_site_pv"></span> 次 | 您是本站第 <span id="busuanzi_value_site_uv"></span> 位访问者
+		</div>
+
+
     <!--Vdoing主题遵循MIT协议，完全开源且免费。如果您对主题的修改并不大，希望您保留主题的链接。-->
     Theme by
     <a
@@ -39,6 +45,9 @@ export default {
 			second:moment(new Date().getTime()).diff(new Date(startTime).getTime(), 'seconds'),
 		}
 	},
+	mounted(){
+		script=require("busuanzi.pure.js");
+	},
   computed: {
     social() {
       return this.$themeConfig.social
@@ -55,7 +64,14 @@ export default {
 		seconds(){
 			return (this.second-this.minute*60)%1000
 		}
-  }
+  },
+	watch: {
+		'$route'(to, from) {
+			if(to.path != from.path){
+				script.fetch();
+			}
+		}
+	},
 }
 </script>
 

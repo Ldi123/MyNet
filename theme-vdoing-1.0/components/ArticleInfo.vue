@@ -58,6 +58,16 @@
             >{{ item + ' ' }}</router-link
           >
         </div>
+				
+			<!-- 浏览量 -->
+				<div
+				    id="busuanzi_container_site_pv"
+				    class="date iconfont icon-liulanliang"
+				    title="浏览量"
+				>
+				<span id="busuanzi_value_page_pv"></span></div>
+			</div>	
+				
       </div>
     </div>
   </div>
@@ -132,8 +142,8 @@ export default {
 </script>
 
 <style lang='stylus' scoped>
-@require '../styles/wrapper.styl'
-
+@require '../styles/wrapper.styl';
+@import "https://at.alicdn.com/t/font_3428831_ogmy5wtrj9r.css";
 .articleInfo-wrap
   @extend $wrapper
   position relative
