@@ -36,6 +36,7 @@
 <script>
 import moment from 'moment';
 let startTime='2021-12-08 00:00:00';
+let script;
 export default {
 	data() {
 		return {
