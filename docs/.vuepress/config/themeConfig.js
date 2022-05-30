@@ -23,10 +23,11 @@ module.exports = {
   bodyBgImg: [
 		// 'https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/2022%E7%B4%A0%E6%9D%90/7U0EB8.2t676t173qo0.jpg',
 		// 'https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/2022素材/b92a3347ae83be517d260dd99f6b42d5.jpg',
-    "http://114.55.7.136:8088/blog/c439b4b1ca11470c9f78b6ec51066ee4.jpg",
-    "http://114.55.7.136:8088/blog/48831ab97cc94279abced695cc18d4a0.jpg",
-    "http://114.55.7.136:8088/blog/de967fb42715443d80e05b4cdff626cf.jpg",
-		'http://114.55.7.136:8088/blog/c439b4b1ca11470c9f78b6ec51066ee4.jpg',
+  //   "http://114.55.7.136:8088/blog/c439b4b1ca11470c9f78b6ec51066ee4.jpg",
+  //   "http://114.55.7.136:8088/blog/48831ab97cc94279abced695cc18d4a0.jpg",
+  //   "http://114.55.7.136:8088/blog/de967fb42715443d80e05b4cdff626cf.jpg",
+		// 'http://114.55.7.136:8088/blog/c439b4b1ca11470c9f78b6ec51066ee4.jpg',
+		'//114.55.7.136:8088/randomImg',
 		'https://cdn.jsdelivr.net/gh/xugaoyi/image_store/blog/20200507175845.jpeg',
     'https://cdn.jsdelivr.net/gh/xugaoyi/image_store/blog/20200507175846.jpeg'
   ], // body背景大图，默认无。 单张图片 String || 多张图片 Array, 多张图片时每隔15秒换一张。
