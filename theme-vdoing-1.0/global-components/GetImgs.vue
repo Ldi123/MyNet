@@ -1,7 +1,7 @@
 <template>
 	<div>
 		<div v-for="(item,index) in imgs" :key="index">
-			<img :src="item.url" />
+			<img :src="item.url" referrerpolicy="no-referrer" />
 		</div>
 	</div>
 </template>
