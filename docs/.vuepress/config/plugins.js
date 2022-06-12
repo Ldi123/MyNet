@@ -66,15 +66,27 @@ module.exports = [
       },
     },
   ],
-  [
-    'vuepress-plugin-zooming', // 放大图片
-    {
-      selector: '.theme-vdoing-content img:not(.no-zoom)', // 排除class是no-zoom的图片
-      options: {
-        bgColor: 'rgba(0,0,0,0.6)',
-      },
-    },
-  ],
+		
+		// 比vuepress-plugin-zooming更好用的放大图片插件
+		[
+					'vuepress-plugin-image-viewer',
+					{
+							selector: '.theme-vdoing-content', // 你想要的插件起作用的页面的class或id
+							options: {
+									title: 0,
+							},
+					},
+		],
+		
+  // [
+  //   'vuepress-plugin-zooming', // 放大图片
+  //   {
+  //     selector: '.theme-vdoing-content img:not(.no-zoom)', // 排除class是no-zoom的图片
+  //     options: {
+  //       bgColor: 'rgba(0,0,0,0.6)',
+  //     },
+  //   },
+  // ],
   [
     'vuepress-plugin-baidu-tongji', // 百度统计
     {
