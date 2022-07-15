@@ -18,15 +18,15 @@
 
 
     <!--Vdoing主题遵循MIT协议，完全开源且免费。如果您对主题的修改并不大，希望您保留主题的链接。-->
-    Theme by
+<!--    Theme by
     <a
       href="https://github.com/xugaoyi/vuepress-theme-vdoing"
       target="_blank"
       title="本站主题"
       >Vdoing</a
-    >
+    > -->
     <template v-if="footer">
-      | Copyright © {{ footer.createYear }}-{{ new Date().getFullYear() }}
+       Copyright © {{ footer.createYear }}-{{ new Date().getFullYear() }}
       <span v-html="footer.copyrightInfo"></span>
     </template>
 		<div style="color: #1685a9;font-size:large;font-weight:bolder;">截至本次打开，网站已运行{{day}}天{{hours}}时{{minutes}}分{{seconds}}秒</div>
