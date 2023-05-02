@@ -108,7 +108,6 @@
       <!-- 移动端features块 e -->
     </div>
     <!-- banner块 e -->
-
     <MainLayout>
       <template #mainLeft>
         <!-- 简约版文章列表 -->
@@ -155,6 +154,11 @@
           v-if="homeSidebarB"
           v-html="homeSidebarB"
         ></div>
+        <div style="background: white" class="card-box">
+         <center>
+          <img alt="今日诗词" src="https://v2.jinrishici.com/one.svg?font-size=30&spacing=2&color=Coral" style="max-width:94%; margin: 25% 0;">
+         </center>
+        </div>
       </template>
     </MainLayout>
   </div>

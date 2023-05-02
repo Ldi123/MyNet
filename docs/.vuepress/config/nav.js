@@ -4,7 +4,7 @@ module.exports = [
 	{
 		text:'网站',
 		items:[
-		  { text:'图库', link: 'http://114.55.7.136:6099/' },
+		 { text:'图库', link: 'http://114.55.7.136:6099/' },
 			{text:'资源库',link:'http://hidi.ys168.com/'},
 			{text:'2020旧版网站',link:'https://ldi123.tk/'},
 			{text:'Blog日志',link:'http://114.55.7.136:8080/'},

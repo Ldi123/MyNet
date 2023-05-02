@@ -1,9 +1,9 @@
 <template>
   <div class="main-wrapper">
+    <!-- <div style="width: 30%;height: auto;background: green;margin-right: 1rem;">hello world</div> -->
     <div class="main-left">
       <slot name="mainLeft" />
     </div>
-
     <div class="main-right">
       <slot name="mainRight" />
     </div>
@@ -38,7 +38,7 @@
 // 719px以下
 @media (max-width $MQMobile)
   .main-wrapper
-    margin 0.9rem 0
+    margin 0.9rem 0.66rem
     padding 0
     display block
     .main-left
@@ -46,7 +46,7 @@
       .post-list
         margin-bottom 3rem
         .post
-          border-radius 0
+          border-radius 0.66rem
       .pagination
         margin-bottom 3rem
     .main-right
@@ -54,6 +54,6 @@
         display none
       .card-box
         margin 0 0 0.9rem 0
-        border-radius 0
+        border-radius 0.66rem
         width 100%
 </style>
