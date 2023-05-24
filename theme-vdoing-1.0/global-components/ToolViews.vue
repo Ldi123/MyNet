@@ -7,6 +7,7 @@
    <div>
     <!-- <button class="niceButton" @click="btnDown">切换下一张</button> -->
    </div>
+   <iframe :src="video_url" style="width: 100%;height: 600px;margin-top: 20px;"/>
 </div>
 </template>
  
@@ -14,6 +15,7 @@
 export default {
     data() {
      return {
+         video_url:"http://114.55.7.136:6688/play/index.html",
          flowSrc1: null,
          isfolw:true,
          clickCount1:1,
