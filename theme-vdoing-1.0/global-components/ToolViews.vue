@@ -7,7 +7,7 @@
    <div>
     <!-- <button class="niceButton" @click="btnDown">切换下一张</button> -->
    </div>
-   <iframe :src="video_url" style="width: 100%;height: 600px;margin-top: 20px;"/>
+   <iframe :src="video_url" style="width: 100%;height: 600px;margin-top: 20px;" allowfullscreen/>
 </div>
 </template>
  
