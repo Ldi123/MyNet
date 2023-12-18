@@ -1,12 +1,12 @@
 <template>
  <div>
-   <div  v-if="isfolw==true" class="main-css"> 
+<!--   <div  v-if="isfolw==true" class="main-css"> 
      <img :src="flowSrc1" class="img-css" :key="clickCount1"/>
      <img :src="flowSrc2" class="img-css" :key="clickCount2"/>
    </div>
    <div>
-    <!-- <button class="niceButton" @click="btnDown">切换下一张</button> -->
-   </div>
+    <button class="niceButton" @click="btnDown">切换下一张</button>
+   </div> -->
    <iframe :src="video_url" style="width: 100%;height: 600px;margin-top: 20px;" allowfullscreen/>
 </div>
 </template>

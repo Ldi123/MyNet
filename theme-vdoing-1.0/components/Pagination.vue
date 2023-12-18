@@ -180,12 +180,10 @@ export default {
       color rgba(125, 125, 125, 0.5)
     &.prev
       left 0
-      border-top-right-radius 32px
-      border-bottom-right-radius 32px
+      border-radius 8px 32px 32px 8px
     &.next
       right 0
-      border-top-left-radius 32px
-      border-bottom-left-radius 32px
+      border-radius 8px 32px 32px 8px
       &::before
         float right
         margin-left 0.3rem
