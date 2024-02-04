@@ -388,7 +388,7 @@ export default {
             background-color lighten($accentColor, 10%)
       // pc端features
       .features
-        padding 2rem 0
+        // padding 2rem 0
         margin-top 2.5rem
         display flex
         flex-wrap wrap
