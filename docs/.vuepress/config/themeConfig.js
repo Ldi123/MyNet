@@ -28,7 +28,7 @@ module.exports = {
   //   "http://114.55.7.136:8088/blog/de967fb42715443d80e05b4cdff626cf.jpg",
 		// 'http://114.55.7.136:8088/blog/c439b4b1ca11470c9f78b6ec51066ee4.jpg',
 		// 'http://114.55.7.136:8088/randomImg' // 随机图片，由于浏览器限制https访问http资源，会自动把http转成https,只能以后认证后使用了
-		'https://photo.sibnet.ru/upload/imgmid/1707018118371477515.jpg',
+  'https://photo.sibnet.ru/upload/imgbig/1707018118371477515.jpg',
 		'https://cdn.jsdelivr.net/gh/xugaoyi/image_store/blog/20200507175845.jpeg',
     'https://cdn.jsdelivr.net/gh/xugaoyi/image_store/blog/20200507175846.jpeg'
   ], // body背景大图，默认无。 单张图片 String || 多张图片 Array, 多张图片时每隔15秒换一张。
