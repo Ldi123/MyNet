@@ -1,7 +1,13 @@
 <template>
+  <iframe src="http://114.55.7.136:6099/v1/index.html"
+  frameborder="0" scrolling="no" 
+  class="body-bg"
+  v-if="isMobile"
+  ></iframe>
   <div
     class="body-bg"
     :style="`background: url(${bgImg}) center center / cover no-repeat;opacity:${opacity}`"
+    v-else
   ></div>
 </template>
 
@@ -10,6 +16,7 @@ import { type } from '../util'
 export default {
   data () {
     return {
+      isMobile:false,
       bgImg: '',
       opacity: 0.5
     }
@@ -36,7 +43,15 @@ export default {
     if (bodyBgImgOpacity !== undefined) {
       this.opacity = bodyBgImgOpacity
     }
-
+    if (this._isMobile()) {
+      this.isMobile = true
+    }
+  },
+  methods:{
+   _isMobile() {
+          let flag = navigator.userAgent.match(/(phone|pad|pod|iPhone|iPod|ios|iPad|Android|Mobile|BlackBerry|IEMobile|MQQBrowser|JUC|Fennec|wOSBrowser|BrowserNG|WebOS|Symbian|Windows Phone)/i)
+          return flag;
+     }
   }
 }
 </script>
