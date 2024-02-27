@@ -12,6 +12,7 @@ module.exports = [
   // ['meta', { name: 'baidu-site-verification', content: '7F55weZDDc' }], // 百度统计的站长验证
   ['meta', { name: 'theme-color', content: '#11a8cd' }], // 移动浏览器主题颜色
   ['meta', {name: 'referrer', content: 'no-referrer-when-downgrade'}],//解决不蒜子文章统计访问量数据不正确问题
+    // ["link", { rel: "stylesheet", href: "https://cdn.jsdelivr.net/npm/katex@0.11.1/dist/katex.min.css" }],
   // [
   //   'script',
   //   {
