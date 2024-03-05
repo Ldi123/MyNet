@@ -227,11 +227,11 @@ function flatten (items, res) {
     &:before
       transform rotate(-135deg)
   .page-nav-centre-next
-    right 0
+    right 0.4rem
     &:before
       transform rotate(45deg)
-.sidebar-open .page-nav-centre-wrap .page-nav-centre-prev
-  left $sidebarWidth
+.sidebar-open .page-nav-centre-wrap
+  display: none
 .no-sidebar .page-nav-centre-wrap .page-nav-centre-prev
   left 0
 </style>
