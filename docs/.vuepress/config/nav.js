@@ -8,7 +8,7 @@ module.exports = [
 			{text:'2020旧版网站',link:'https://ldi123.github.io/'},
 			{text:'Blog日志',link:'http://114.55.7.136:8080/'},
    {text:'生活博',link:'https://ldi666.github.io/'},
-   {text:'热搜榜',link:'http://114.55.7.136:6099/'},
+   {text:'文件快递柜',link:'http://114.55.7.136:8088/'},
    {text:'✨新年快乐🧨',items:[{text:'烟花',link:'http://114.55.7.136:6099/firework/index.html'}]
    },
 		],
