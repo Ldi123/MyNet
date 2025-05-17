@@ -1,13 +1,12 @@
 <template>
-  <iframe src="http://114.55.7.136:6099/v1/index.html"
+  <!-- <iframe src="http://114.55.7.136:6099/v1/index.html"
   frameborder="0" scrolling="no" 
   class="body-bg"
   v-if="isMobile"
-  ></iframe>
+  ></iframe> -->
   <div
     class="body-bg"
     :style="`background: url(${bgImg}) center center / cover no-repeat;opacity:${opacity}`"
-    v-else
   ></div>
 </template>
 
