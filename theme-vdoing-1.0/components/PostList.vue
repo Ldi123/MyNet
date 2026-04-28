@@ -211,7 +211,7 @@ export default {
         > a, > span
           opacity 0.7
           font-size 0.8rem
-          margin-right 0.666rem
+          margin-right 0.333rem
           cursor pointer
           &::before
             margin-right 0.3rem
