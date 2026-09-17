@@ -39,14 +39,31 @@ $mobileSidebarWidth = $sidebarWidth * 0.9
       .sidebar
         padding-top: 0
 
+// 手机端：隐藏行号、紧凑内边距（不贴边）
+@media (max-width: $MQMobile)
+  {$contentClass}
+    div[class*="language-"]
+      margin 0.85rem 0
+      border-radius 10px
+      &::before
+        top 0.7em
+        right 0.9em
+        font-size 0.66rem
+      pre, pre[class*="language-"]
+        padding 0.9rem 1rem
+        font-size 0.84em
+      &.line-numbers-mode
+        .line-numbers-wrapper
+          display none
+        &::after
+          display none
+        pre
+          padding-left 1rem
+
 // narrow mobile
 @media (max-width: $MQMobileNarrow)
   h1
     font-size 1.9rem
-  {$contentClass}
-    div[class*="language-"]
-      margin 0.85rem -1.5rem
-      border-radius 0
 
 // 侧边栏显示隐藏的适配
 @media (min-width: ($MQMobile + 1px)) // 720px
@@ -99,3 +116,13 @@ $mobileSidebarWidth = $sidebarWidth * 0.9
   .theme-container.no-sidebar
     .sidebar-button
       display none
+
+// 手机/触屏设备隐藏代码复制按钮
+// （one-click-copy 插件只按 UA 判断，浏览器模拟器与部分 UA 会漏出，这里用 CSS 兜底）
+@media (max-width: $MQMobile)
+  .code-copy
+    display none !important
+
+@media (hover: none) and (pointer: coarse)
+  .code-copy
+    display none !important

@@ -15,14 +15,16 @@ body {$contentClass}
 
 body {$contentClass}
   pre, pre[class*="language-"]
-    line-height 1.4
-    padding 1.25rem 1.5rem
+    line-height 1.55
+    padding 1.15rem 1.35rem
     margin 0.85rem 0
     background-color $codeBgColor
-    border-radius 6px
+    border-radius 10px
     overflow auto
+    max-width 100%
+    -webkit-overflow-scrolling touch
+    font-family 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace
     code
-      // color #fff
       color var(--codeColor)
       padding 0
       background-color transparent
@@ -32,7 +34,9 @@ div[class*="language-"]
   position relative
   // background-color $codeBgColor
   background-color var(--codeBg)
-  border-radius 6px
+  border 1px solid var(--codeBorder, rgba(0,0,0,.06))
+  border-radius 10px
+  overflow hidden
   .highlight-lines
     user-select none
     padding-top 1.3rem
@@ -50,10 +54,13 @@ div[class*="language-"]
   &::before
     position absolute
     z-index 3
-    top 0.8em
-    right 1em
-    font-size 0.8rem
-    color rgba(150,150,150,.7)
+    top 0.85em
+    right 1.05em
+    font-size 0.72rem
+    letter-spacing 0.06em
+    text-transform uppercase
+    color var(--textColor)
+    opacity 0.32
     // color rgba(255, 255, 255, 0.4)
   &:not(.line-numbers-mode)
     .line-numbers-wrapper
@@ -98,7 +105,7 @@ div[class*="language-"]
       left 0
       width $lineNumbersWrapperWidth
       height 100%
-      border-radius 6px 0 0 6px
+      border-radius 10px 0 0 10px
       // border-right 1px solid rgba(0, 0, 0, 66%)
       // background-color $codeBgColor
       border-right 1px solid var(--borderColor)
