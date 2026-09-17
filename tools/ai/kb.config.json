@@ -1,0 +1,8 @@
+{
+  "site": "https://ldi123.tk/MyNet",
+  "roots": [
+    { "path": "docs", "visibility": "public" }
+  ],
+  "excludeDirs": [".vuepress", "@pages", "node_modules", ".git", "_private"],
+  "defaultLimit": 8
+}

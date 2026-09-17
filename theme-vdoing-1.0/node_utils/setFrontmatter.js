@@ -1,6 +1,6 @@
 const fs = require('fs'); // 文件模块
 const matter = require('gray-matter'); // FrontMatter解析器 https://github.com/jonschlinkert/gray-matter
-const jsonToYaml = require('json2yaml')
+const yaml = require('js-yaml') // yaml序列化，替代原 json2yaml + 正则去引号（后者会破坏含冒号的值）
 const chalk = require('chalk') // 命令行打印美化
 // const arg = process.argv.splice(2)[0]; // 获取命令行传入的参数
 const readFileList = require('./modules/readFileList');
@@ -8,17 +8,26 @@ const { type, repairDate, dateFormat } = require('./modules/fn');
 const log = console.log
 const path = require('path');
 const os = require('os');
+const { execFileSync } = require('child_process');
 
 const PREFIX = '/pages/'
 
 /**
  * 给.md文件设置frontmatter(标题、日期、永久链接等数据)
+ *
+ * 日期来源：优先取 git 首次提交日期（本地/CI 一致、可复现），
+ * 未跟踪的新文件回退到文件修改时间 mtime。不再使用 atime/birthtime，
+ * 避免在 CI 全新 checkout 时把已有文章日期刷成“今天”。
  */
 function setFrontmatter(sourceDir, themeConfig) {
 
   const isCategory = themeConfig.category
   const isTag = themeConfig.tag
   const categoryText = themeConfig.categoryText || '随笔'
+
+  // 预取 git 首次提交日期（只调用一次 git，避免逐文件调用）
+  const gitRoot = getGitRoot(sourceDir)
+  const gitAddDates = gitRoot ? getGitAddDates(gitRoot) : {}
 
   const files = readFileList(sourceDir); // 读取所有md文件数据
 
@@ -29,41 +38,29 @@ function setFrontmatter(sourceDir, themeConfig) {
     const fileMatterObj = matter(dataStr, {});
 
     if (Object.keys(fileMatterObj.data).length === 0) { // 未定义FrontMatter数据
-      const stat = fs.statSync(file.filePath);
-      const dateStr = dateFormat(
-        getBirthtime(stat)
-      ); // 文件的创建时间
+      const dateStr = getFileDate(file.filePath, gitRoot, gitAddDates); // git首次提交时间，未跟踪时取mtime
       const categories = getCategories(
         file,
         categoryText
       );
 
-      let cateLabelStr = '';
-      categories.forEach(item => {
-        cateLabelStr += os.EOL + '  - ' + item
-      });
-
-      let cateStr = '';
-      if (!(isCategory === false)) {
-        cateStr = os.EOL + 'categories:' + cateLabelStr
+      const fmData = {
+        title: file.name,
+        date: dateStr,
+        permalink: getPermalink()
       };
+      if (file.filePath.indexOf('_posts') > -1) {
+        fmData.sidebar = 'auto'
+      }
+      if (isCategory !== false) {
+        fmData.categories = categories
+      }
+      if (isTag !== false) {
+        fmData.tags = ['']
+      }
 
-      // 注意下面这些反引号字符串的格式会映射到文件
-      //       const cateStr = isCategory === false ? '' : `
-      // categories:
-      //   - ${categories[0]}${categories[1] ? os.EOL + '  - ' + categories[1] : ''}`;
-
-      const tagsStr = isTag === false ? '' : `
-tags:
-  - `;
-
-      const fmData = `---
-title: ${file.name}
-date: ${dateStr}
-permalink: ${getPermalink()}${file.filePath.indexOf('_posts') > -1 ? os.EOL + 'sidebar: auto' : ''}${cateStr}${tagsStr}
----`;
-
-      fs.writeFileSync(file.filePath, `${fmData}${os.EOL}${fileMatterObj.content}`); // 写入
+      const newData = `---${os.EOL}${dumpYaml(fmData)}---${os.EOL}${fileMatterObj.content}`;
+      fs.writeFileSync(file.filePath, newData); // 写入
       log(chalk.blue('tip ') + chalk.green(`write frontmatter(写入frontmatter)：${file.filePath} `))
 
     } else { // 已有FrontMatter
@@ -77,8 +74,7 @@ permalink: ${getPermalink()}${file.filePath.indexOf('_posts') > -1 ? os.EOL + 's
       }
 
       if (!matterData.hasOwnProperty('date')) { // 日期
-        const stat = fs.statSync(file.filePath);
-        matterData.date = dateFormat(getBirthtime(stat));
+        matterData.date = getFileDate(file.filePath, gitRoot, gitAddDates);
         mark = true;
       }
 
@@ -108,13 +104,70 @@ permalink: ${getPermalink()}${file.filePath.indexOf('_posts') > -1 ? os.EOL + 's
         if (matterData.date && type(matterData.date) === 'date') {
           matterData.date = repairDate(matterData.date) // 修复时间格式
         }
-        const newData = jsonToYaml.stringify(matterData).replace(/\n\s{2}/g, "\n").replace(/"/g, "") + '---' + os.EOL + fileMatterObj.content;
+        const newData = `---${os.EOL}${dumpYaml(matterData)}---${os.EOL}${fileMatterObj.content}`;
         fs.writeFileSync(file.filePath, newData); // 写入
         log(chalk.blue('tip ') + chalk.green(`write frontmatter(写入frontmatter)：${file.filePath} `))
       }
 
     }
   })
+}
+
+// 序列化 frontmatter（兼容 js-yaml v3 safeDump / v4 dump）
+function dumpYaml(obj) {
+  const dump = yaml.safeDump || yaml.dump
+  return dump(obj, { lineWidth: -1 })
+}
+
+// 获取 git 仓库根目录（sourceDir 一般为 docs）
+function getGitRoot(sourceDir) {
+  try {
+    return execFileSync('git', ['-C', sourceDir, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
+  } catch (e) {
+    return ''
+  }
+}
+
+// 批量获取每个文件的“首次提交日期”，返回 { 'docs/xx.md': '2021-08-01T12:00:00+08:00' }
+function getGitAddDates(gitRoot) {
+  const map = {}
+  try {
+    const output = execFileSync(
+      'git',
+      ['-C', gitRoot, '-c', 'core.quotepath=false', 'log', '--reverse', '--diff-filter=A', '--no-merges', '--name-only', '--format=@@@%aI'],
+      { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
+    )
+    let currentDate = ''
+    output.split(/\r?\n/).forEach(line => {
+      if (!line) return
+      if (line.indexOf('@@@') === 0) {
+        currentDate = line.slice(3).trim()
+      } else if (currentDate && !map[line]) {
+        map[line] = currentDate // --reverse 保证首次出现即为“首次提交”
+      }
+    })
+  } catch (e) {
+    // git 不可用（非 git 环境 / 浅克隆）时静默降级到 mtime
+  }
+  return map
+}
+
+// 获取文件日期：优先 git 首次提交时间，否则回退文件修改时间 mtime
+function getFileDate(filePath, gitRoot, gitAddDates) {
+  if (gitRoot) {
+    const rel = path.relative(gitRoot, filePath).split(path.sep).join('/')
+    if (gitAddDates[rel]) {
+      return formatGitDate(gitAddDates[rel])
+    }
+  }
+  const stat = fs.statSync(filePath)
+  return dateFormat(stat.mtime)
+}
+
+// 把 git 的 ISO 时间(带时区)格式化为 YYYY-MM-DD HH:mm:ss，保留提交时的本地时间，做到跨机器一致
+function formatGitDate(iso) {
+  const m = String(iso).match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/)
+  return m ? `${m[1]} ${m[2]}` : String(iso)
 }
 
 // 获取分类数据
@@ -136,12 +189,6 @@ function getCategories(file, categoryText) {
     categories.push(categoryText)
   }
   return categories
-}
-
-// 获取文件创建时间
-function getBirthtime(stat) {
-  // 在一些系统下无法获取birthtime属性的正确时间，使用atime代替
-  return stat.birthtime.getFullYear() != 1970 ? stat.birthtime : stat.atime
 }
 
 // 定义永久链接数据

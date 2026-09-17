@@ -1,0 +1,17 @@
+{
+  "name": "my-net-ai-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MyNet 知识库的本地 AI 工具（MCP stdio 服务）",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=14"
+  },
+  "scripts": {
+    "mcp": "node kb-mcp.js"
+  },
+  "dependencies": {
+    "gray-matter": "^4.0.3",
+    "minisearch": "^7.2.0"
+  }
+}

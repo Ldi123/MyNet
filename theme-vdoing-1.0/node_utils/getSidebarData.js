@@ -98,6 +98,38 @@ function mapTocToPostSidebar(root) {
 
 
 /**
+ * 解析文件名/目录名：
+ *   '01.标题'  -> order: 1, title: '标题'   （序号用于排序）
+ *   '标题'     -> order: null, title: '标题'（无序号，标题可含 '.'）
+ */
+function parseName(filename) {
+  let stem = filename
+  let order = null
+  const m = filename.match(/^(\d+)\.(.+)$/)
+  if (m) {
+    order = parseInt(m[1], 10)
+    stem = m[2]
+  }
+  return { order, title: stem }
+}
+
+/**
+ * 侧边栏排序：frontmatter.order > 文件名序号 > date 降序 > 标题
+ * （把文件名序号当成 order 的回退值，保持旧结构不变，同时支持新文件用 frontmatter 排序）
+ */
+function compareItems(a, b) {
+  const ao = (a.order === null || a.order === undefined || isNaN(a.order)) ? Infinity : a.order
+  const bo = (b.order === null || b.order === undefined || isNaN(b.order)) ? Infinity : b.order
+  if (ao !== bo) return ao - bo
+
+  const ad = a.date || ''
+  const bd = b.date || ''
+  if (ad !== bd) return ad < bd ? 1 : -1 // 日期降序
+
+  return String(a.title).localeCompare(String(b.title), 'zh')
+}
+
+/**
  * 将目录映射为对应的侧边栏配置数据
  * @param {String} root
  * @param {Boolean} collapsable
@@ -105,7 +137,7 @@ function mapTocToPostSidebar(root) {
  */
 
 function mapTocToSidebar(root, collapsable, prefix = '') {
-  let sidebar = []; // 结构化文章侧边栏数据
+  const items = []; // 先收集同一级的条目，再统一排序
   const files = fs.readdirSync(root); // 读取目录（文件和文件夹）,返回数组
 
   files.forEach(filename => {
@@ -114,45 +146,55 @@ function mapTocToSidebar(root, collapsable, prefix = '') {
     if (filename === '.DS_Store') { // 过滤.DS_Store文件
       return
     }
-    let [order, title, type] = filename.split('.');
-    order = parseInt(order, 10);
-    if (isNaN(order) || order < 0) {
-      log(chalk.yellow(`warning: 该文件 "${file}" 序号出错，请填写正确的序号`))
+    const parsed = parseName(filename);
+
+    if (stat.isDirectory()) { // 是文件夹目录
+      const child = mapTocToSidebar(file, collapsable, prefix + filename + '/')
+      items.push({
+        order: parsed.order,
+        title: parsed.title,
+        date: '',
+        entry: {
+          title: parsed.title,
+          collapsable, // 是否可折叠，默认true
+          children: child.sidebar // 子栏路径添加前缀
+        }
+      })
+      return
+    }
+
+    if (path.extname(filename).toLowerCase() !== '.md') {
+      log(chalk.yellow(`warning: 该文件 "${file}" 非.md格式文件，不支持该文件类型`))
       return;
     }
-    if (sidebar[order]) { // 判断序号是否已经存在
-      log(chalk.yellow(`warning: 该文件 "${file}" 的序号在同一级别中重复出现，将会被覆盖`))
+
+    const contentStr = fs.readFileSync(file, 'utf8') // 读取md文件内容，返回字符串
+    const { data } = matter(contentStr, {}) // 解析出front matter数据
+    const permalink = data.permalink || ''
+
+    // 目录页对应的永久链接，用于给面包屑提供链接
+    const { pageComponent } = data
+    if (pageComponent && pageComponent.name === "Catalogue") {
+      catalogueData[parsed.title] = permalink
     }
-    if (stat.isDirectory()) { // 是文件夹目录
-      sidebar[order] = {
-        title,
-        collapsable, // 是否可折叠，默认true
-        children: mapTocToSidebar(file, collapsable, prefix + filename + '/').sidebar // 子栏路径添加前缀
-      }
-    } else { // 是文件
-      if (type !== 'md') {
-        log(chalk.yellow(`warning: 该文件 "${file}" 非.md格式文件，不支持该文件类型`))
-        return;
-      }
-      const contentStr = fs.readFileSync(file, 'utf8') // 读取md文件内容，返回字符串
-      const { data } = matter(contentStr, {}) // 解析出front matter数据
-      const permalink = data.permalink || ''
 
-      // 目录页对应的永久链接，用于给面包屑提供链接
-      const { pageComponent } = data
-      if (pageComponent && pageComponent.name === "Catalogue") {
-        catalogueData[title] = permalink
-      }
+    const title = data.title || parsed.title
+    // 排序值：优先 frontmatter.order，其次文件名序号
+    const order = (data.order === undefined || data.order === null) ? parsed.order : data.order
+    const date = data.date ? String(data.date) : ''
 
-      if (data.title) {
-        title = data.title
-      }
-      sidebar[order] = [prefix + filename, title, permalink];  // [<路径>, <标题>, <永久链接>]
-
-    }
+    items.push({
+      order,
+      title,
+      date,
+      entry: [prefix + filename, title, permalink]  // [<路径>, <标题>, <永久链接>]
+    });
   })
 
-  sidebar = sidebar.filter(item => item !== null && item !== undefined);
+  items.sort(compareItems);
+
+  const sidebar = items.map(item => item.entry);
+
   return {
     sidebar,
     catalogueData

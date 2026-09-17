@@ -2,8 +2,8 @@
   "name": "theme-vdoing-blog",
   "version": "1.0.0",
   "scripts": {
-    "dev": "vuepress dev docs",
-    "build": "vuepress build docs",
+    "dev": "node utils/genLLM.js --dev && vuepress dev docs",
+    "build": "vuepress build docs && node utils/genLLM.js",
     "deploy": "bash deploy.sh",
     "editFm": "node utils/editFrontmatter.js",
     "baiduPush": "node utils/baiduPush.js https://ldi123.tk/MyNet && bash baiduPush.sh",
@@ -20,15 +20,16 @@
     "vuepress-plugin-baidu-tongji": "^1.0.1",
     "vuepress-plugin-boxx": "0.0.7",
     "vuepress-plugin-demo-block": "^0.7.2",
+    "vuepress-plugin-image-viewer": "^1.1.6",
     "vuepress-plugin-one-click-copy": "^1.0.2",
     "vuepress-plugin-thirdparty-search": "^1.0.2",
     "vuepress-plugin-zooming": "^1.1.7",
     "vuepress-theme-vdoing": "^1.8.5",
-				"vuepress-plugin-image-viewer":"^1.1.6",
     "yamljs": "^0.3.0"
   },
   "dependencies": {
     "busuanzi.pure.js": "^1.0.3",
+    "minisearch": "^7.2.0",
     "moment": "^2.29.1",
     "vuepress-plugin-comment": "^0.7.3"
   }
