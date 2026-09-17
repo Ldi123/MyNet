@@ -1,0 +1,27 @@
+# 经验
+
+> 来源: https://ldi123.tk/MyNet/pages/0aed3d/
+> 日期: 2021-12-28 20:03:44
+
+#### 报错信息
+
+```js
+vue.runtime.esm.js:619 
+       [Vue warn]: Unknown custom element: <LamboPageTable> - did you register the component correctly? For recursive components, make sure to provide the "name" option.
+
+found in
+
+---> <Anonymous>
+       <Content>
+         <Layout>... (1 recursive calls)
+           <FrameAdmin>
+             <App>
+               <Root>
+```
+
+#### 可能原因：
+
+1. 把components写成了component
+
+2. import xxx from "./xxx.vue" 写成了import { xxx} from "./xxx.vue"
+3. 代码中有两个components，后一个的值把前一个覆盖了
