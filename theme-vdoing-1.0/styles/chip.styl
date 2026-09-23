@@ -1,0 +1,321 @@
+// 设计稿扩展色彩变量（三套模式）
+
+.theme-mode-light
+  --chipBg: rgba(17, 168, 205, .1)
+  --warmChipBg: rgba(255, 87, 34, .1)
+  --text2: rgba(0, 50, 60, .62)
+  --text3: rgba(0, 50, 60, .42)
+  --heroBg: #fff
+
+.theme-mode-dark
+  --chipBg: rgba(17, 168, 205, .16)
+  --warmChipBg: rgba(255, 87, 34, .16)
+  --text2: rgba(232, 232, 239, .6)
+  --text3: rgba(232, 232, 239, .38)
+  --heroBg: #232327
+
+.theme-mode-read
+  --chipBg: rgba(153, 102, 51, .14)
+  --warmChipBg: rgba(180, 90, 40, .14)
+  --text2: rgba(112, 66, 20, .72)
+  --text3: rgba(112, 66, 20, .5)
+  --heroBg: rgba(245, 245, 213, 1)
+
+// ===== Hero 身份区 / CTA =====
+.hero-id
+  display flex
+  align-items center
+  gap 14px
+  margin-bottom 16px
+.hero-avatar
+  width 56px
+  height 56px
+  border-radius 50%
+  object-fit cover
+  flex-shrink 0
+  border 3px solid var(--heroBg)
+  box-shadow 0 0 0 3px rgba(17, 168, 205, .45), 0 8px 20px -8px rgba(17, 168, 205, .4)
+  background linear-gradient(135deg, $accentColor, #0B7E9E)
+.hero-id-text
+  min-width 0
+.id-slogan
+  font-size 12.5px
+  color var(--text3)
+  margin-top 3px
+.hello
+  display inline-flex
+  align-items center
+  gap 7px
+  font-size 13px
+  font-weight 600
+  color $accentColor
+  background var(--chipBg)
+  padding 5px 14px
+  border-radius 999px
+  margin-bottom 0
+.hello .dot
+  width 7px
+  height 7px
+  border-radius 50%
+  background #34c759
+  box-shadow 0 0 0 3px rgba(52, 199, 89, .25)
+.hero-title
+  font-size 2.15rem
+  line-height 1.25
+  font-weight 700
+  letter-spacing -0.02em
+  margin 0 0 12px
+  border none
+  padding 0
+  color var(--textColor)
+  em
+    font-style normal
+    color $accentColor
+.hero-left .sub
+  font-size 15.5px
+  color var(--text2)
+  max-width 460px
+  margin 0 0 26px
+  line-height 1.6
+.stats
+  display flex
+  gap 30px
+  margin-bottom 30px
+.stat b
+  display block
+  font-size 24px
+  font-weight 700
+  letter-spacing -0.02em
+  color var(--textColor)
+  line-height 1.2
+  i
+    font-style normal
+    font-size 13px
+    font-weight 500
+    color var(--text3)
+    margin-left 3px
+.stat span
+  font-size 12.5px
+  color var(--text3)
+.cta
+  display flex
+  align-items center
+  gap 12px
+  flex-wrap wrap
+.btn
+  display inline-flex
+  align-items center
+  gap 7px
+  height 44px
+  padding 0 24px
+  border-radius 999px
+  font-size 15px
+  font-weight 600
+  transition all 0.25s
+  cursor pointer
+  border none
+  text-decoration none
+  &.primary
+    background $accentColor
+    color #fff
+    box-shadow 0 6px 18px -6px rgba(17, 168, 205, .55)
+    &:hover
+      background #0B7E9E
+      transform translateY(-2px)
+      color #fff
+      box-shadow 0 10px 24px -6px rgba(17, 168, 205, .55)
+  &.ghost
+    background var(--chipBg)
+    color $accentColor
+    &:hover
+      transform translateY(-2px)
+      background rgba(17, 168, 205, .18)
+      color $accentColor
+.cta-social
+  display flex
+  gap 8px
+  flex-shrink 0
+  margin-left 4px
+.social-btn
+  width 44px
+  height 44px
+  border-radius 50%
+  background var(--chipBg)
+  color $accentColor
+  display grid
+  place-items center
+  font-size 15px
+  transition all 0.2s
+  text-align center
+  line-height 44px
+  &:hover
+    background $accentColor
+    color #fff
+    transform translateY(-2px)
+
+// ===== Hero 身份区左栏 =====
+.hero-left
+  flex 1
+  min-width 0
+
+// ===== 随机推荐卡 =====
+// 默认不倾斜；仅 Hero 内右侧卡倾斜（as-list / 手机端始终水平）
+.rec-card
+  background var(--mainBg)
+  border 1px solid var(--borderColor)
+  border-radius 16px
+  box-shadow 0 12px 32px -12px rgba(0, 50, 60, 0.18)
+  padding 22px 24px 20px
+  transform none
+  transition transform 0.35s
+.hero .hero-right .rec-card
+  transform rotate(1.2deg)
+.hero:hover .hero-right .rec-card
+  transform rotate(0deg) translateY(-4px)
+.hero-right.as-list .rec-card
+  transform none
+  box-shadow 0 1px 2px 0 rgba(0, 0, 0, 0.05)
+@media (max-width 640px)
+  .rec-card
+    transform none !important
+.rec-head
+  display flex
+  align-items center
+  justify-content space-between
+  margin-bottom 14px
+.rec-badge
+  display inline-flex
+  align-items center
+  gap 6px
+  font-size 12.5px
+  font-weight 600
+  color $accentColor
+  background var(--chipBg)
+  padding 4px 12px
+  border-radius 999px
+.rec-shuffle
+  width 30px
+  height 30px
+  border-radius 50%
+  border 1px solid var(--borderColor)
+  background var(--mainBg)
+  color var(--text2)
+  font-size 14px
+  cursor pointer
+  display grid
+  place-items center
+  transition all 0.2s
+  padding 0
+  line-height 1
+  &:hover
+    border-color $accentColor
+    color $accentColor
+    transform rotate(180deg)
+.rec-actions
+  display flex
+  align-items center
+  gap 6px
+.rec-close
+  width 30px
+  height 30px
+  border-radius 50%
+  border 1px solid var(--borderColor)
+  background var(--mainBg)
+  color var(--text2)
+  font-size 16px
+  cursor pointer
+  display grid
+  place-items center
+  transition all 0.2s
+  padding 0
+  line-height 1
+  &:hover
+    border-color #EC5975
+    color #EC5975
+    background rgba(236, 89, 117, 0.08)
+.rec-pills
+  display flex
+  gap 7px
+  flex-wrap wrap
+  margin-bottom 10px
+  .pill
+    font-size 11.5px
+    padding 2px 10px
+    font-weight 600
+    border-radius 999px
+    background var(--chipBg)
+    color $accentColor
+    &.warm
+      background var(--warmChipBg)
+      color $activeColor
+.rec-title
+  font-size 17.5px
+  font-weight 650
+  line-height 1.45
+  letter-spacing -0.01em
+  margin 0 0 8px
+  border none
+  padding 0
+  a
+    color var(--textColor)
+    transition color 0.2s
+    &:hover
+      color $accentColor
+.rec-excerpt
+  font-size 13.5px
+  color var(--text2)
+  line-height 1.65
+  display -webkit-box
+  -webkit-line-clamp 3
+  -webkit-box-orient vertical
+  overflow hidden
+  margin 0 0 16px
+.rec-foot
+  display flex
+  align-items center
+  justify-content space-between
+  padding-top 14px
+  border-top 1px solid var(--borderColor)
+  font-size 12.5px
+  color var(--text3)
+.rec-more
+  color $accentColor
+  font-weight 600
+  &:hover
+    text-decoration underline
+
+// ===== pill / tag-chip =====
+.pill
+  display inline-flex
+  align-items center
+  font-size 12px
+  font-weight 600
+  padding 3px 11px
+  border-radius 999px
+  background var(--chipBg)
+  color $accentColor
+  line-height 1.4
+  &.warm
+    background var(--warmChipBg)
+    color $activeColor
+.tag-chip
+  display inline-flex
+  align-items center
+  gap 4px
+  color $accentColor
+  background var(--chipBg)
+  padding 2px 9px
+  border-radius 999px
+  font-weight 600
+  font-size 12px
+  line-height 1.4
+  text-decoration none
+  &:hover
+    color $accentColor
+    text-decoration none
+  .tag-ico
+    font-size 13px
+    line-height 1
+    width 13px
+    height 13px
+    transform translateY(0)

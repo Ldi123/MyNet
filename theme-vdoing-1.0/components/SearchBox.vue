@@ -85,9 +85,8 @@ export default {
       return this.focused && (this.loading || (this.suggestions && this.suggestions.length))
     },
     alignRight () {
-      const navCount = (this.$site.themeConfig.nav || []).length
-      const repo = this.$site.repo ? 1 : 0
-      return navCount + repo <= 2
+      // 搜索框固定在导航最右侧，下拉必须向左展开，避免溢出视口
+      return true
     }
   },
 
@@ -298,6 +297,7 @@ export default {
   .suggestions
     background var(--mainBg)
     width 24rem
+    max-width calc(100vw - 2rem)
     max-height 70vh
     overflow-y auto
     position absolute
@@ -307,8 +307,8 @@ export default {
     padding 0.4rem
     list-style-type none
     box-shadow 0 6px 20px rgba(0,0,0,.15)
-    &.align-right
-      right 0
+    right 0
+    left auto
   .suggestion
     line-height 1.4
     padding 0.45rem 0.6rem
@@ -360,7 +360,8 @@ export default {
 @media (max-width: $MQNarrow) and (min-width: $MQMobile)
   .search-box
     .suggestions
-      left 0
+      right 0
+      left auto
 
 @media (max-width: $MQMobile)
   .search-box
@@ -369,6 +370,7 @@ export default {
       left 1rem
     .suggestions
       right 0
+      left auto
 
 @media (max-width: $MQMobileNarrow)
   .search-box

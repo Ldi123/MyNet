@@ -7,6 +7,20 @@
         v-for="item in sortPosts"
         :key="item.key"
       >
+        <div class="meta-top">
+          <span
+            class="pill"
+            :class="{ warm: index === 1 }"
+            v-for="(c, index) in topCats(item)"
+            :key="'c' + index"
+            >{{ c }}</span
+          >
+          <span class="pill warm" v-if="item.frontmatter.sticky">置顶</span>
+          <span class="date" v-if="item.frontmatter.date">{{
+            item.frontmatter.date.split(' ')[0]
+          }}</span>
+        </div>
+
         <div class="title-wrapper">
           <h2>
             <router-link :to="item.path">
@@ -16,66 +30,27 @@
               }}</span>
             </router-link>
           </h2>
-          <div class="article-info">
-            <a
-              title="作者"
-              class="iconfont icon-touxiang"
-              target="_blank"
-              v-if="item.author && item.author.href"
-              :href="item.author.href"
-              >{{ item.author.name ? item.author.name : item.author }}</a
-            >
-            <span
-              title="作者"
-              class="iconfont icon-touxiang"
-              v-else-if="item.author"
-              >{{ item.author.name ? item.author.name : item.author }}</span
-            >
-
-            <span
-              title="创建时间"
-              class="iconfont icon-riqi"
-              v-if="item.frontmatter.date"
-              >{{ item.frontmatter.date.split(' ')[0] }}</span
-            >
-            <span
-              title="分类"
-              class="iconfont icon-wenjian"
-              v-if="
-                $themeConfig.category !== false && item.frontmatter.categories
-              "
-            >
-              <router-link
-                :to="`/categories/?category=${encodeURIComponent(c)}`"
-                v-for="(c, index) in item.frontmatter.categories"
-                :key="index"
-                >{{ c }}</router-link
-              >
-            </span>
-            <span
-              title="标签"
-              class="iconfont icon-biaoqian tags"
-              v-if="
-                $themeConfig.tag !== false &&
-                item.frontmatter.tags &&
-                item.frontmatter.tags[0]
-              "
-            >
-              <router-link
-                :to="`/tags/?tag=${encodeURIComponent(t)}`"
-                v-for="(t, index) in item.frontmatter.tags"
-                :key="index"
-                >{{ t }}</router-link
-              >
-            </span>
-          </div>
         </div>
+
         <div class="excerpt-wrapper" v-if="item.excerpt">
           <div class="excerpt" v-html="item.excerpt"></div>
+        </div>
+
+        <div class="meta-bot">
+          <span class="who">
+            <span class="ava">{{ authorInitial }}</span
+            >{{ authorName }}
+          </span>
           <router-link
-            :to="item.path"
-            class="readmore iconfont icon-jiantou-you"
-            >阅读全文</router-link
+            class="tag-chip"
+            :to="`/tags/?tag=${encodeURIComponent(t)}`"
+            v-for="(t, index) in botTags(item)"
+            :key="'t' + index"
+          >
+            <span class="tag-ico iconfont icon-biaoqian1"></span>{{ t }}
+          </router-link>
+          <router-link :to="item.path" class="readmore"
+            >阅读全文 <span class="rm-arrow">→</span></router-link
           >
         </div>
       </div>
@@ -103,21 +78,29 @@ export default {
       default: 10
     }
   },
-  data() {
+  data () {
     return {
       sortPosts: [],
       postListOffsetTop: 0
     }
   },
-  created() {
+  computed: {
+    authorName () {
+      const author = this.$themeConfig.author
+      if (!author) return ''
+      return typeof author === 'string' ? author : author.name || ''
+    },
+    authorInitial () {
+      const n = this.authorName || 'D'
+      return n.charAt(0).toUpperCase()
+    }
+  },
+  created () {
     this.setPosts()
   },
-  mounted() {
-    // this.postListOffsetTop = this.getElementToPageTop(this.$refs.postList) - 240
-  },
   watch: {
-    currentPage() {
-      if (this.$route.query.p != this.currentPage) { // 此判断防止添加相同的路由信息（如浏览器回退时触发的）
+    currentPage () {
+      if (this.$route.query.p != this.currentPage) {
         this.$router.push({
           query: {
             ...this.$route.query,
@@ -125,20 +108,17 @@ export default {
           }
         })
       }
-      // setTimeout(() => {
-      //   window.scrollTo({ top: this.postListOffsetTop }) // behavior: 'smooth'
-      // },0)
       this.setPosts()
     },
-    category() {
+    category () {
       this.setPosts()
     },
-    tag() {
+    tag () {
       this.setPosts()
     }
   },
   methods: {
-    setPosts() {
+    setPosts () {
       const currentPage = this.currentPage
       const perPage = this.perPage
 
@@ -151,14 +131,19 @@ export default {
         posts = this.$sortPosts
       }
 
-      this.sortPosts = posts.slice((currentPage - 1) * perPage, currentPage * perPage)
+      this.sortPosts = posts.slice(
+        (currentPage - 1) * perPage,
+        currentPage * perPage
+      )
     },
-    // getElementToPageTop(el) {
-    //   if(el && el.parentElement) {
-    //     return this.getElementToPageTop(el.parentElement) + el.offsetTop
-    //   }
-    //   return el.offsetTop
-    // }
+    topCats (item) {
+      const cats = (item.frontmatter.categories || []).filter(Boolean)
+      return cats.slice(0, 2)
+    },
+    botTags (item) {
+      if (this.$themeConfig.tag === false) return []
+      return (item.frontmatter.tags || []).filter(Boolean)
+    }
   }
 }
 </script>
@@ -168,14 +153,23 @@ export default {
   margin-bottom 4rem
   .post
     position relative
-    padding 1rem 1.5rem
+    padding 1.35rem 1.6rem
     margin-bottom 0.9rem
-    transition all 0.3s
+    border-radius 16px
+    border 1px solid var(--borderColor)
+    transition all 0.28s
     &.post-leave-active
       display none
     &.post-enter
       opacity 0
       transform translateX(-20px)
+    @media (any-hover hover)
+      &:hover
+        transform translateY(-3px)
+        box-shadow 0 12px 32px -12px rgba(0, 50, 60, 0.18)
+        .readmore
+          opacity 1
+          transform translateX(0)
     &::before
       position absolute
       top -1px
@@ -183,14 +177,32 @@ export default {
       font-size 2.5rem
       color $activeColor
       opacity 0.85
+
+    .meta-top
+      display flex
+      align-items center
+      gap 8px
+      margin-bottom 10px
+      flex-wrap wrap
+      .date
+        margin-left auto
+        font-size 12.5px
+        color var(--text3)
+        font-variant-numeric tabular-nums
+        opacity 1
+
     .title-wrapper
       a
         color var(--textColor)
+        transition color 0.2s
         &:hover
           color $accentColor
       h2
-        margin 0.5rem 0
-        font-size 1.4rem
+        margin 0 0 9px
+        font-size 1.12rem
+        font-weight 650
+        line-height 1.45
+        letter-spacing -0.01em
         border none
         .title-tag
           height 1.2rem
@@ -207,40 +219,64 @@ export default {
           display block
           @media (max-width $MQMobile)
             font-weight 400
-      .article-info
-        > a, > span
-          opacity 0.7
-          font-size 0.8rem
-          margin-right 0.333rem
-          cursor pointer
-          &::before
-            margin-right 0.3rem
-          a
-            margin 0
-            &:not(:first-child)
-              &::before
-                content '/'
-        .tags a:not(:first-child)::before
-          content '、'
+
     .excerpt-wrapper
-      border-top 1px solid var(--borderColor)
-      margin 0.5rem 0
+      border none
+      margin 0 0 14px
       overflow hidden
       .excerpt
-        margin-bottom 0.3rem
-        font-size 0.92rem
+        margin-bottom 0
+        font-size 0.875rem
+        color var(--text2)
+        line-height 1.7
+        display -webkit-box
+        -webkit-line-clamp 2
+        -webkit-box-orient vertical
+        overflow hidden
         h1, h2, h3
           display none
         img
           max-height 280px
           max-width 100% !important
           margin 0 auto
+
+    .meta-bot
+      display flex
+      align-items center
+      gap 12px
+      font-size 12.5px
+      color var(--text2)
+      flex-wrap wrap
+      .who
+        display flex
+        align-items center
+        gap 6px
+        .ava
+          width 20px
+          height 20px
+          border-radius 50%
+          background linear-gradient(135deg, $accentColor, #0B7E9E)
+          color #fff
+          font-size 10px
+          display grid
+          place-items center
+          font-weight 700
+          line-height 1
       .readmore
-        float right
-        margin-right 1rem
-        line-height 1rem
-        &::before
-          float right
-          font-size 0.8rem
-          margin 0.1rem 0 0 0.2rem
+        margin-left auto
+        color $accentColor
+        font-weight 600
+        opacity 0
+        transform translateX(-8px)
+        transition all 0.28s
+        white-space nowrap
+        .rm-arrow
+          margin-left 2px
+
+  // 触屏/无 hover：直接显示阅读全文
+  @media (hover none)
+    .post
+      .readmore
+        opacity 1
+        transform none
 </style>

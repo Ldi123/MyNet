@@ -1,115 +1,70 @@
 <template>
   <div class="home-wrapper">
-    <!-- banner块 s -->
-    <div
-      class="banner"
+    <!-- 非紧凑：Hero（身份 + 标题 + 数据 + CTA + 推荐卡） -->
+    <section
+      class="hero card-box"
       :class="{ 'hide-banner': !showBanner }"
-      :style="bannerBgStyle"
+      v-if="!compactLayout"
+      ref="heroTop"
     >
-      <div
-        class="banner-conent"
-        :style="
-          !homeData.features && !homeData.heroImage && `padding-top: 7rem`
-        "
-      >
-        <header class="hero">
+      <HeroIdentity
+        :postCount="total"
+        :catCount="catCount"
+        :tagCount="tagCount"
+        :tagline="taglineText"
+      />
+      <div class="hero-right" ref="heroRight" v-if="showRec">
+        <RecCard ref="recTop" @close="recClosed = true" />
+      </div>
+    </section>
+
+    <!-- 快捷入口 -->
+    <div
+      class="features-wrap"
+      :class="{ 'hide-banner': !showBanner }"
+      ref="featuresWrap"
+      v-if="hasFeatures"
+    >
+      <div class="features">
+        <component
+          :is="feature.link ? 'router-link' : 'a'"
+          class="feature"
+          :class="feature.cls || 'f' + (index + 1)"
+          :to="feature.link"
+          :href="feature.link || 'javascript:;'"
+          v-for="(feature, index) in homeData.features"
+          :key="index"
+        >
+          <div class="ico" v-if="feature.ico">{{ feature.ico }}</div>
           <img
-            v-if="homeData.heroImage"
-            :src="$withBase(homeData.heroImage)"
-            :alt="homeData.heroAlt"
+            class="feature-img"
+            v-else-if="feature.imgUrl"
+            :src="$withBase(feature.imgUrl)"
+            :alt="feature.title"
           />
-          <h1 v-if="homeData.heroText" id="main-title">
-            {{ homeData.heroText }}
-          </h1>
-          <p v-if="homeData.tagline" class="description">
-            {{ homeData.tagline }}
-          </p>
-          <p class="action" v-if="homeData.actionText && homeData.actionLink">
-            <NavLink class="action-button" :item="actionLink" />
-          </p>
-        </header>
-
-        <!-- PC端features块 s -->
-        <div class="features" v-if="hasFeatures && !isMQMobile">
-          <div
-            class="feature"
-            v-for="(feature, index) in homeData.features"
-            :key="index"
-          >
-            <router-link v-if="feature.link" :to="feature.link">
-              <img
-                class="feature-img"
-                v-if="feature.imgUrl"
-                :src="$withBase(feature.imgUrl)"
-                :alt="feature.title"
-              />
-              <h2>{{ feature.title }}</h2>
-              <p>{{ feature.details }}</p>
-            </router-link>
-            <a v-else href="javascript:;">
-              <img
-                class="feature-img"
-                v-if="feature.imgUrl"
-                :src="$withBase(feature.imgUrl)"
-                :alt="feature.title"
-              />
-              <h2>{{ feature.title }}</h2>
-              <p>{{ feature.details }}</p>
-            </a>
-          </div>
-        </div>
-        <!-- PC端features块 e -->
+          <h3>{{ feature.title }}</h3>
+          <p>{{ feature.details }}</p>
+          <span class="feature-arrow" aria-hidden="true">→</span>
+        </component>
       </div>
-
-      <!-- 移动端features块 s -->
-      <!-- isMQMobile放到v-if上线后会报错 -->
-      <div class="slide-banner" v-if="hasFeatures" v-show="isMQMobile">
-        <div class="banner-wrapper">
-          <div class="slide-banner-scroll" ref="slide">
-            <div class="slide-banner-wrapper">
-              <div
-                class="slide-item"
-                v-for="(feature, index) in homeData.features"
-                :key="index"
-              >
-                <router-link v-if="feature.link" :to="feature.link">
-                  <img
-                    class="feature-img"
-                    v-if="feature.imgUrl"
-                    :src="$withBase(feature.imgUrl)"
-                    :alt="feature.title"
-                  />
-                  <h2>{{ feature.title }}</h2>
-                  <p>{{ feature.details }}</p>
-                </router-link>
-                <a v-else href="javascript:;">
-                  <img
-                    class="feature-img"
-                    v-if="feature.imgUrl"
-                    :src="$withBase(feature.imgUrl)"
-                    :alt="feature.title"
-                  />
-                  <h2>{{ feature.title }}</h2>
-                  <p>{{ feature.details }}</p>
-                </a>
-              </div>
-            </div>
-          </div>
-          <div class="docs-wrapper">
-            <span
-              class="doc"
-              v-for="(item, index) in homeData.features.length"
-              :key="index"
-              :class="{ active: currentPageIndex === index }"
-            ></span>
-          </div>
-        </div>
-      </div>
-      <!-- 移动端features块 e -->
     </div>
-    <!-- banner块 e -->
+
     <MainLayout>
       <template #mainLeft>
+        <div class="sec-head" v-if="showBanner">
+          <h2>最新文章</h2>
+          <router-link to="/archives/">查看全部 →</router-link>
+        </div>
+
+        <!-- 紧凑（≤640）：推荐卡上移到列表上方 -->
+        <div
+          class="hero-right as-list"
+          :class="{ 'hide-banner': !showBanner }"
+          v-if="compactLayout && showBanner && showRec"
+        >
+          <RecCard ref="recList" @close="recClosed = true" />
+        </div>
+
         <!-- 简约版文章列表 -->
         <UpdateArticle
           class="card-box"
@@ -122,20 +77,37 @@
           v-else-if="!homeData.postList || homeData.postList === 'detailed'"
         >
           <PostList :currentPage="currentPage" :perPage="perPage" />
-          <Pagination
-            :total="total"
-            :perPage="perPage"
-            :currentPage="currentPage"
-            @getCurrentPage="handlePagination"
+          <div
+            class="pager-wrap"
+            ref="pagerWrap"
             v-show="Math.ceil(total / perPage) > 1"
-          />
+          >
+            <Pagination
+              :total="total"
+              :perPage="perPage"
+              :currentPage="currentPage"
+              @getCurrentPage="handlePagination"
+            />
+          </div>
         </template>
+
+        <!-- 紧凑：Hero 沉到分页下方 -->
+        <section
+          class="hero card-box hero-sunk"
+          v-if="compactLayout && showBanner"
+        >
+          <HeroIdentity
+            :postCount="total"
+            :catCount="catCount"
+            :tagCount="tagCount"
+            :tagline="taglineText"
+          />
+        </section>
 
         <Content class="theme-vdoing-content custom card-box" />
       </template>
 
       <template #mainRight>
-        <BloggerBar v-if="$themeConfig.blogger" />
         <CategoriesBar
           v-if="
             $themeConfig.category !== false &&
@@ -154,10 +126,14 @@
           v-if="homeSidebarB"
           v-html="homeSidebarB"
         ></div>
-        <div style="background: white" class="card-box">
-         <center>
-          <img alt="今日诗词" src="https://v2.jinrishici.com/one.svg?font-size=30&spacing=2&color=Coral" style="max-width:94%; margin: 25% 0;">
-         </center>
+        <div class="card-box poem-card">
+          <center>
+            <img
+              alt="今日诗词"
+              src="https://v2.jinrishici.com/one.svg?font-size=30&spacing=2&color=Coral"
+              style="max-width:94%; margin: 25% 0;"
+            />
+          </center>
         </div>
       </template>
     </MainLayout>
@@ -165,34 +141,25 @@
 </template>
 
 <script>
-import NavLink from "@theme/components/NavLink";
-import BScroll from "@better-scroll/core"
-import Slide from "@better-scroll/slide"
 import MainLayout from '@theme/components/MainLayout'
 import PostList from '@theme/components/PostList'
 import UpdateArticle from '@theme/components/UpdateArticle'
 import Pagination from '@theme/components/Pagination'
-import BloggerBar from '@theme/components/BloggerBar'
 import CategoriesBar from '@theme/components/CategoriesBar'
 import TagsBar from '@theme/components/TagsBar'
+import HeroIdentity from '@theme/components/HeroIdentity'
+import RecCard from '@theme/components/RecCard'
 
-const MOBILE_DESKTOP_BREAKPOINT = 720 // refer to config.styl
-
-BScroll.use(Slide)
+const COMPACT_BREAKPOINT = 640 // 设计稿手机端布局断点
 
 export default {
   data () {
     return {
-      isMQMobile: false,
-
-      slide: null,
-      currentPageIndex: 0,
-      playTimer: 0,
-      mark: 0,
-
-      total: 0, // 总长
-      perPage: 10, // 每页长
-      currentPage: 1// 当前页
+      compactLayout: false,
+      total: 0,
+      perPage: 6,
+      currentPage: 1,
+      recClosed: false
     }
   },
   computed: {
@@ -204,75 +171,68 @@ export default {
     hasFeatures () {
       return !!(this.homeData.features && this.homeData.features.length)
     },
+    taglineText () {
+      return this.homeData.tagline || undefined
+    },
+    catCount () {
+      return this.$categoriesAndTags.categories.length
+    },
+    tagCount () {
+      return this.$categoriesAndTags.tags.length
+    },
     homeSidebarB () {
       const { htmlModules } = this.$themeConfig
       return htmlModules ? htmlModules.homeSidebarB : ''
     },
-    showBanner () { // 当分页不在第一页时隐藏banner栏
+    showBanner () {
       return this.$route.query.p
         && this.$route.query.p != 1
         && (!this.homeData.postList || this.homeData.postList === 'detailed')
         ? false : true
     },
-    bannerBgStyle () {
-      let bannerBg = this.homeData.bannerBg
-      if (!bannerBg || bannerBg === 'auto') { // 默认
-        if (this.$themeConfig.bodyBgImg) { // 当有bodyBgImg时，不显示背景
-          return ''
-        } else { // 网格纹背景
-          return 'background: rgb(40,40,45) url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACMAAAAjCAYAAAAe2bNZAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABOSURBVFhH7c6xCQAgDAVRR9A6E4hLu4uLiWJ7tSnuQcIvr2TRYsw3/zOGGEOMIcYQY4gxxBhiDDGGGEOMIcYQY4gxxBhiDLkx52W4Gn1tuslCtHJvL54AAAAASUVORK5CYII=)'
-        }
-      } else if (bannerBg === 'none') { // 无背景
-        if (this.$themeConfig.bodyBgImg) {
-          return ''
-        } else {
-          return 'background: var(--mainBg);color: var(--textColor)'
-        }
-      } else if (bannerBg.indexOf('background') > -1) { // 自定义背景样式
-        return bannerBg
-      } else if (bannerBg.indexOf('.') > -1) { // 大图
-        return `background: url(${this.$withBase(bannerBg)}) center center / cover no-repeat`
-      }
-
-    },
-    actionLink () {
-      return {
-        link: this.homeData.actionLink,
-        text: this.homeData.actionText
-      };
+    showRec () {
+      if (this.recClosed) return false
+      if (this.homeData.recCard === false) return false
+      if (this.$themeConfig.homeRec === false) return false
+      return true
     }
   },
-  components: { NavLink, MainLayout, PostList, UpdateArticle, BloggerBar, CategoriesBar, TagsBar, Pagination },
+  components: {
+    MainLayout,
+    PostList,
+    UpdateArticle,
+    CategoriesBar,
+    TagsBar,
+    Pagination,
+    HeroIdentity,
+    RecCard
+  },
   created () {
     this.total = this.$sortPosts.length
-  },
-  beforeMount () {
-    this.isMQMobile = window.innerWidth < MOBILE_DESKTOP_BREAKPOINT ? true : false; // vupress在打包时不能在beforeCreate(),created()访问浏览器api（如window）
   },
   mounted () {
     if (this.$route.query.p) {
       this.currentPage = Number(this.$route.query.p)
     }
-
-    if (this.hasFeatures && this.isMQMobile && (!this.$route.query.p || this.$route.query.p == 1)) {
-      this.init()
+    this.mq = window.matchMedia(`(max-width: ${COMPACT_BREAKPOINT}px)`)
+    this.onCompactChange = () => {
+      this.compactLayout = this.mq.matches
     }
-
-    if (this.hasFeatures) {
-      window.addEventListener('resize', () => {
-        this.isMQMobile = window.innerWidth < MOBILE_DESKTOP_BREAKPOINT ? true : false;
-        if (this.isMQMobile && !this.slide && !this.mark) {
-          this.mark++
-          setTimeout(() => {
-            this.init()
-          }, 60)
-        }
-      })
+    this.onCompactChange()
+    if (this.mq.addEventListener) {
+      this.mq.addEventListener('change', this.onCompactChange)
+    } else if (this.mq.addListener) {
+      this.mq.addListener(this.onCompactChange)
     }
   },
   beforeDestroy () {
-    clearTimeout(this.playTimer)
-    this.slide && this.slide.destroy()
+    if (this.mq && this.onCompactChange) {
+      if (this.mq.removeEventListener) {
+        this.mq.removeEventListener('change', this.onCompactChange)
+      } else if (this.mq.removeListener) {
+        this.mq.removeListener(this.onCompactChange)
+      }
+    }
   },
   watch: {
     '$route.query.p' () {
@@ -281,262 +241,232 @@ export default {
       } else {
         this.currentPage = Number(this.$route.query.p)
       }
-
-      if (this.hasFeatures && this.currentPage === 1 && this.isMQMobile) {
-        setTimeout(() => {
-          this.slide && this.slide.destroy()
-          this.init()
-        }, 0)
-      }
     }
   },
   methods: {
-    init () {
-      clearTimeout(this.playTimer)
-      this.slide = new BScroll(this.$refs.slide, {
-        scrollX: true, // x轴滚动
-        scrollY: false, // y轴滚动
-        slide: {
-          loop: true,
-          threshold: 100
-        },
-        useTransition: true, // 使用css3 transition动画
-        momentum: false,
-        bounce: false, // 回弹
-        stopPropagation: false, // 是否阻止事件冒泡
-        probeType: 2,
-        preventDefault: false
-      })
-
-      // user touches the slide area
-      this.slide.on('beforeScrollStart', () => {
-        clearTimeout(this.playTimer)
-      })
-      // user touched the slide done
-      this.slide.on('scrollEnd', () => {
-        this.autoGoNext()
-      })
-      this.slide.on('slideWillChange', (page) => {
-        this.currentPageIndex = page.pageX
-      })
-      this.autoGoNext()
-    },
-    autoGoNext () {
-      clearTimeout(this.playTimer)
-      this.playTimer = setTimeout(() => {
-        this.slide.next()
-      }, 4000)
-    },
-    handlePagination (i) { // 分页
+    handlePagination (i) {
       this.currentPage = i
-    },
-    getScrollTop () {
-      return window.pageYOffset
-        || document.documentElement.scrollTop
-        || document.body.scrollTop
-    },
-  },
-
-};
+    }
+  }
+}
 </script>
 
 <style lang="stylus" scoped>
 .home-wrapper
-  .banner
-    width 100%
-    // min-height 450px
-    min-height 320px
-    margin-top $navbarHeight
-    color $bannerTextColor
+  max-width $homePageWidth
+  margin 0 auto
+  padding ($navbarHeight + 1.4rem) 1.5rem 0
+  box-sizing border-box
+  .hide-banner
+    display none !important
+
+  // ===== Hero =====
+  .hero
     position relative
     overflow hidden
-    .banner-conent
-      max-width $homePageWidth
-      margin 0px auto
+    display flex
+    align-items center
+    gap 3rem
+    padding 2.8rem 3rem
+    margin-bottom 1.1rem
+    border-radius 20px
+    &::before
+      content ""
+      position absolute
+      inset 0
+      background radial-gradient(600px 300px at 85% -40px, rgba(17, 168, 205, 0.16), transparent 60%),
+        radial-gradient(420px 260px at -60px 110%, rgba(255, 87, 34, 0.1), transparent 60%)
+      pointer-events none
+    & > *
       position relative
       z-index 1
-      overflow hidden
-      .hero
-        text-align center
-        margin-top 3rem
-        img
-          max-width 100%
-          max-height 240px
-          display block
-          margin 2rem auto 1.5rem
-        h1
-          margin 0
-          font-size 3.2rem
-        .description, .action
-          margin 1.5rem auto
-        .description
-          max-width 40rem
-          font-size 1.1rem
-          line-height 1.3
-          opacity 0.9
-        .action-button
-          display inline-block
-          font-size 1.2rem
-          background-color $accentColor
-          padding 0.8rem 1.6rem
-          border-radius 4px
-          transition background-color 0.1s ease
-          box-sizing border-box
-          border-bottom 1px solid darken($accentColor, 10%)
-          color #fff
-          &:hover
-            background-color lighten($accentColor, 10%)
-      // pc端features
-      .features
-        // padding 2rem 0
-        margin-top 2.5rem
-        display flex
-        flex-wrap wrap
-        align-items flex-start
-        align-content stretch
-        justify-content space-between
-      .feature
-        flex-grow 1
-        flex-basis 30%
-        max-width 30%
-        text-align center
-        a
-          // color lighten($bannerTextColor,10%)
-          color inherit
-          .feature-img
-            width 10rem
-            height 10rem
-            animation heart 1.2s ease-in-out 0s infinite alternate
-            animation-play-state paused
-          h2
-            font-weight 500
-            font-size 1.3rem
-            border-bottom none
-            padding-bottom 0
-          p
-            opacity 0.8
-            padding 0 0.8rem
-      .feature:hover
-        .feature-img
-          animation-play-state running
-        h2, p
-          color $accentColor
-    // 移动端滑动图标
-    .slide-banner
-      margin-top 2rem
-      .banner-wrapper
-        position relative
-      .slide-banner-scroll
-        min-height 1px
-        overflow hidden
-      .slide-banner-wrapper
-        height 300px
-        .slide-item
-          display inline-block
-          height 300px
-          width 100%
-          text-align center
-          a
-            // color lighten($bannerTextColor,10%)
-            color inherit
-            .feature-img
-              width 10rem
-              height 10rem
-            h2
-              font-size 1.1rem
-              font-weight 500
-              border-bottom none
-              padding-bottom 0
-            p
-              opacity 0.8
-              padding 0 0.8rem
-      .docs-wrapper
-        position absolute
-        bottom 25px
-        left 50%
-        transform translateX(-50%)
-        .doc
-          display inline-block
-          margin 0 4px
-          width 8px
-          height 8px
-          border-radius 50%
-          background var(--textColor)
-          opacity 0.9
-          &.active
-            opacity 0.5
-  // 分页不在第一页时，隐藏banner栏
-  .banner.hide-banner
-    display none
-    & + .main-wrapper
-      margin-top: ($navbarHeight + 0.9rem)
+    .hero-right
+      width 400px
+      flex-shrink 0
+    &.hero-sunk
+      margin-top 0.6rem
+      margin-bottom 2rem
+      padding 1.4rem 1.2rem
+      display block
+
+  // ≤640 上移后的推荐卡（在 MainLayout 内，不在 .hero 下）
+  .hero-right.as-list
+    width 100%
+    max-width none
+    margin-bottom 0.9rem
+    .rec-card
+      transform none
+      box-shadow 0 1px 2px 0 rgba(0, 0, 0, 0.05)
+
+  // ===== features =====
+  .features-wrap
+    margin-bottom 1.1rem
+  .features
+    display grid
+    grid-template-columns repeat(3, 1fr)
+    gap 1.1rem
+  .feature
+    position relative
+    overflow hidden
+    display block
+    background var(--mainBg)
+    border 1px solid var(--borderColor)
+    border-radius 16px
+    padding 1.4rem 1.4rem 1.3rem
+    box-shadow 0 1px 2px 0 rgba(0, 0, 0, 0.05)
+    color var(--textColor)
+    transition all 0.28s
+    &::after
+      content "→"
+      position absolute
+      right 1.35rem
+      top 1.5rem
+      font-size 1rem
+      color var(--text3)
+      opacity 0
+      transform translateX(-6px)
+      transition all 0.28s
+    &:hover
+      transform translateY(-4px)
+      box-shadow 0 12px 32px -12px rgba(0, 50, 60, 0.18)
+      border-color rgba(17, 168, 205, 0.35)
+      &::after
+        opacity 1
+        transform translateX(0)
+        color $accentColor
+    .ico
+      width 46px
+      height 46px
+      border-radius 13px
+      display grid
+      place-items center
+      font-size 22px
+      margin-bottom 0.95rem
+      background linear-gradient(135deg, rgba(17, 168, 205, 0.18), rgba(17, 168, 205, 0.08))
+    &.f2 .ico
+      background linear-gradient(135deg, rgba(255, 87, 34, 0.16), rgba(255, 87, 34, 0.06))
+    &.f3 .ico
+      background linear-gradient(135deg, rgba(52, 199, 89, 0.16), rgba(52, 199, 89, 0.06))
+    .feature-img
+      width 4rem
+      height 4rem
+      border-radius 12px
+      object-fit cover
+      margin-bottom 0.9rem
+    h3
+      font-size 1.05rem
+      font-weight 650
+      margin 0 0 0.3rem
+      border none
+      padding 0
+      letter-spacing -0.01em
+    p
+      margin 0
+      font-size 0.82rem
+      line-height 1.55
+      color var(--text2)
+      opacity 1
+
+  // ===== sec-head =====
+  .sec-head
+    display flex
+    align-items baseline
+    justify-content space-between
+    margin 0.25rem 0.1rem 0.9rem
+    h2
+      font-size 1.18rem
+      font-weight 700
+      letter-spacing -0.01em
+      margin 0
+      display flex
+      align-items center
+      gap 0.55rem
+      border none
+      padding 0
+      &::before
+        content ""
+        width 4px
+        height 18px
+        border-radius 2px
+        background linear-gradient(180deg, $accentColor, #0B7E9E)
+    a
+      font-size 0.82rem
+      font-weight 600
+      color var(--textLightenColor)
+      transition color 0.2s
+      &:hover
+        color $accentColor
+
   .main-wrapper
-    margin-top 2rem
+    margin 0
+    max-width none
+    padding 0
+    width 100%
     .main-left
       .card-box
         margin-bottom 0.9rem
+      .pager-wrap
+        margin-bottom 0
       .pagination
-        margin-bottom 4rem
+        margin-bottom 2rem
       .theme-vdoing-content
         padding 0 2rem
         overflow hidden
-        &>:first-child
+        & > :first-child
           padding-top 2rem
-        &>:last-child
+        & > :last-child
           padding-bottom 2rem
     .main-right
       .custom-html-box
         padding 0
         overflow hidden
-@keyframes heart
-  from
-    transform translate(0, 0)
-  to
-    transform translate(0, 8px)
-// 1025px以下
-@media (max-width 1025px)
+
+// ===== 960 以下：Hero 单列、右卡全宽 =====
+@media (max-width 960px)
   .home-wrapper
-    .banner
-      .banner-conent
-        .hero
-          h1
-            font-size 2.5rem
-          .description
-            font-size 1rem
-        .feature
-          a
-            h2
-              font-size 1.1rem
-            .feature-img
-              width 9rem
-              height 9rem
-// 719px以下
-@media (max-width $MQMobile)
+    .hero
+      flex-direction column
+      align-items stretch
+      gap 1.5rem
+      padding 2.2rem 1.8rem
+      .hero-right
+        width 100%
+        max-width 420px
+        margin 0 auto
+        .rec-card
+          transform none
+
+// ===== ≤640：精简 Hero / features 横滑 =====
+@media (max-width 640px)
   .home-wrapper
-    .banner
-      .banner-conent
-        .features
-          display none !important
-// 419px以下
-@media (max-width $MQMobileNarrow)
-  .home-wrapper
-    .banner-conent
-      padding-left 1.5rem
-      padding-right 1.5rem
-      .hero
-        img
-          max-height 210px
-          margin 2rem auto 1.2rem
-        h1
-          font-size 2rem
-        h1, .description, .action
-          margin 1.2rem auto
-        .description
-          font-size 1.2rem
-        .action-button
-          font-size 1rem
-          padding 0.6rem 1.2rem
-      .feature
-        h2
-          font-size 1.25rem
+    padding-top ($navbarHeight + 0.7rem)
+    .hero
+      gap 0
+      padding 1.4rem 1.1rem
+    .features-wrap
+      margin-bottom 0.9rem
+    .features
+      display flex
+      overflow-x auto
+      scroll-snap-type x mandatory
+      -webkit-overflow-scrolling touch
+      scrollbar-width none
+      gap 0.75rem
+      &::-webkit-scrollbar
+        display none
+    .feature
+      flex 0 0 min(78%, 300px)
+      scroll-snap-align start
+      padding 1.1rem 1.1rem 1rem
+      .ico
+        width 40px
+        height 40px
+        font-size 19px
+        margin-bottom 0.65rem
+      p
+        font-size 0.78rem
+    .rec-card
+      padding 1rem 1.1rem 0.9rem
+    .sec-head
+      margin-bottom 0.75rem
 </style>

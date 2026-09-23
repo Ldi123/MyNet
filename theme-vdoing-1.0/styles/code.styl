@@ -1,95 +1,179 @@
 body {$contentClass}
   code
     color var(--textLightenColor)
-    padding 0.25rem 0.5rem
+    padding 0.2em 0.4em
     margin 0
     font-size 0.9em
-    // background-color rgba(27,31,35,0.05)
-    background-color rgba(100,100,100,0.08)
-    border-radius 3px
+    background-color rgba(100, 100, 100, 0.08)
+    border-radius 5px
     .token
       &.deleted
         color #EC5975
       &.inserted
         color $accentColor
 
+// ===== 代码块（Apple 风格）=====
+// 顶栏：语言标签左、复制按钮右；正文 SF Mono；三套模式 token 见 palette / code-theme
+$codeHeaderH = 2.45rem
+
 body {$contentClass}
   pre, pre[class*="language-"]
     line-height 1.55
-    padding 1.15rem 1.35rem
-    margin 0.85rem 0
-    background-color $codeBgColor
-    border-radius 10px
+    padding 1rem 1.25rem
+    margin 0.9rem 0
+    background-color var(--codeBg)
+    border-radius 12px
     overflow auto
     max-width 100%
     -webkit-overflow-scrolling touch
     font-family 'SF Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace
+    font-size 0.9em
+    tab-size 2
+    &::-webkit-scrollbar
+      height 6px
+      width 6px
+    &::-webkit-scrollbar-thumb
+      background rgba(127, 127, 127, 0.35)
+      border-radius 3px
+    &::-webkit-scrollbar-track
+      background transparent
     code
       color var(--codeColor)
       padding 0
       background-color transparent
       border-radius 0
+      font-size inherit
+
+  // 无语言包装的裸 pre 保持圆角
+  pre:not([class*="language-"])
+    border 1px solid var(--codeBorder)
+    border-radius 12px
 
 div[class*="language-"]
   position relative
-  // background-color $codeBgColor
+  margin 0.9rem 0
   background-color var(--codeBg)
-  border 1px solid var(--codeBorder, rgba(0,0,0,.06))
-  border-radius 10px
+  // 顶栏背景（1px 分隔线 + 语言区底色）
+  background-image linear-gradient(var(--codeHeaderBg), var(--codeHeaderBg)),
+    linear-gradient(var(--codeBorder), var(--codeBorder))
+  background-size 100% $codeHeaderH, 100% 1px
+  background-position top left, 0 $codeHeaderH
+  background-repeat no-repeat, no-repeat
+  border 1px solid var(--codeBorder)
+  border-radius 12px
   overflow hidden
-  .highlight-lines
-    user-select none
-    padding-top 1.3rem
-    position absolute
-    top 0
-    left 0
-    width 100%
-    line-height 1.4
-    .highlighted
-      background-color rgba(0, 0, 0, 30%)
-  pre, pre[class*="language-"]
-    background transparent
-    position relative !important
-    z-index 1
+  box-shadow 0 1px 2px rgba(0, 0, 0, 0.04)
+  transition border-color 0.2s, box-shadow 0.2s
+  &:hover
+    border-color rgba(17, 168, 205, 0.28)
+    box-shadow 0 4px 16px -6px rgba(0, 50, 60, 0.12)
+
+  // 语言标签：顶栏左侧
   &::before
     position absolute
     z-index 3
-    top 0.85em
-    right 1.05em
-    font-size 0.72rem
+    top 0
+    left 1rem
+    right auto
+    height $codeHeaderH
+    line-height $codeHeaderH
+    font-size 0.7rem
+    font-weight 600
     letter-spacing 0.06em
     text-transform uppercase
-    color var(--textColor)
-    opacity 0.32
-    // color rgba(255, 255, 255, 0.4)
+    color var(--text3)
+    opacity 1
+    pointer-events none
+
+  .highlight-lines
+    user-select none
+    position absolute
+    top $codeHeaderH
+    left 0
+    width 100%
+    padding-top 1rem
+    line-height 1.55
+    z-index 0
+    .highlighted
+      background-color rgba(17, 168, 205, 0.1)
+
+  pre, pre[class*="language-"]
+    position relative !important
+    z-index 1
+    margin 0
+    padding ($codeHeaderH + 0.9rem) 1.25rem 1.1rem
+    background transparent
+    border-radius 0
+
+  // 复制按钮（one-click-copy）：顶栏右侧，Apple 胶囊感
+  // 插件挂在 pre 内；pre 为 relative，故定位到 pre 顶部（即顶栏区）
+  pre .code-copy
+    position absolute
+    z-index 10
+    top 0.35rem
+    right 0.55rem
+    left auto
+    width 1.8rem
+    height 1.8rem
+    margin 0
+    padding 0
+    display flex
+    align-items center
+    justify-content center
+    border-radius 7px
+    border 1px solid transparent
+    background transparent
+    color var(--text3)
+    fill currentColor
+    font-size 0
+    opacity 0
+    cursor pointer
+    transition opacity 0.15s, background 0.15s, color 0.15s, border-color 0.15s
+    svg
+      width 13px
+      height 13px
+      fill currentColor
+      color var(--text3)
+    &:hover
+      background var(--chipBg)
+      border-color rgba(17, 168, 205, 0.25)
+      color $accentColor
+      svg
+        color $accentColor
+  &:hover pre .code-copy,
+  pre:hover .code-copy
+    opacity 1
+
   &:not(.line-numbers-mode)
     .line-numbers-wrapper
       display none
+
   &.line-numbers-mode
-    .highlight-lines .highlighted
-        position relative
-        &:before
-          content ' '
-          position absolute
-          z-index 3
-          left 0
-          top 0
-          display block
-          width $lineNumbersWrapperWidth
-          height 100%
-          background-color rgba(0, 0, 0, 30%)
     pre
-      padding-left $lineNumbersWrapperWidth + 1 rem
-      vertical-align middle
+      padding-left $lineNumbersWrapperWidth + 1rem
+    .highlight-lines .highlighted
+      position relative
+      &:before
+        content ' '
+        position absolute
+        z-index 3
+        left -($lineNumbersWrapperWidth + 1rem)
+        top -1rem
+        display block
+        width $lineNumbersWrapperWidth
+        height 100%
+        background-color rgba(17, 168, 205, 0.1)
     .line-numbers-wrapper
       position absolute
-      top 0
+      z-index 2
+      top $codeHeaderH
+      left 0
       width $lineNumbersWrapperWidth
       text-align center
-      // color rgba(255, 255, 255, 0.3)
-      color rgba(127, 127, 127, .5)
-      padding 1.25rem 0
-      line-height 1.4
+      color rgba(127, 127, 127, 0.45)
+      padding 1rem 0 1.1rem
+      line-height 1.55
+      font-size 0.9em
       br
         user-select none
       .line-number
@@ -101,16 +185,14 @@ div[class*="language-"]
       content ''
       position absolute
       z-index 2
-      top 0
+      top $codeHeaderH
       left 0
       width $lineNumbersWrapperWidth
-      height 100%
-      border-radius 10px 0 0 10px
-      // border-right 1px solid rgba(0, 0, 0, 66%)
-      // background-color $codeBgColor
-      border-right 1px solid var(--borderColor)
-      background-color var(--codeBg)
-
+      height 'calc(100% - %s)' % $codeHeaderH
+      border-radius 0
+      border-right 1px solid var(--codeBorder)
+      background-color transparent
+      box-shadow inset -1px 0 0 rgba(17, 168, 205, 0.06)
 
 for lang in $codeLang
   div{'[class~="language-' + lang + '"]'}

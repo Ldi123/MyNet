@@ -44,11 +44,11 @@
     .main-left
       width 100%
       .post-list
-        margin-bottom 3rem
+        margin-bottom 2rem
         .post
           border-radius 0.66rem
       .pagination
-        margin-bottom 3rem
+        margin-bottom 1.5rem
     .main-right
       .blogger-wrapper
         display none

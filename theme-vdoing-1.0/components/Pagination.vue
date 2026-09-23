@@ -1,25 +1,25 @@
 <template>
   <div class="pagination">
-    <span
-      class="card-box prev iconfont icon-jiantou-zuo"
-      :class="{disabled: currentPage === 1}"
+    <button
+      type="button"
+      class="page-btn prev"
+      :disabled="currentPage === 1"
       @click="goPrex()"
-    >
-      <p>上一页</p>
-    </span>
+    >上一页</button>
 
     <!-- 分页在5页及以下时 -->
     <div
       class="pagination-list"
       v-if="pages <= 5"
     >
-      <span
-        class="card-box"
+      <button
+        type="button"
+        class="page-btn num"
         v-for="item in pages"
         :key="item"
         :class="{active: currentPage === item}"
         @click="goIndex(item)"
-      >{{item}}</span>
+      >{{item}}</button>
     </div>
     <!-- 分页在5页以上 -->
     <div
@@ -27,11 +27,12 @@
       v-else
     >
       <!-- 一号位 -->
-      <span
-        class="card-box"
+      <button
+        type="button"
+        class="page-btn num"
         :class="{active: currentPage === 1}"
         @click="goIndex(1)"
-      >1</span>
+      >1</button>
 
       <!-- 二号位 -->
       <span
@@ -41,19 +42,21 @@
         title="上两页"
       />
       <!--这里没有使用v-if的原因是因为部署版本在当前页大于3时刷新页面出现了一些bug-->
-      <span
-        class="card-box"
+      <button
+        type="button"
+        class="page-btn num"
         v-show="currentPage <= 3"
         :class="{active: currentPage === 2}"
         @click="goIndex(2)"
-      >2</span>
+      >2</button>
 
       <!-- 三号位 -->
-      <span
-        class="card-box"
+      <button
+        type="button"
+        class="page-btn num"
         :class="{active: currentPage >= 3 && currentPage <= (pages - 2)}"
         @click="goIndex(threeNum())"
-      >{{ threeNum() }}</span>
+      >{{ threeNum() }}</button>
 
       <!-- 四号位 -->
       <span
@@ -62,28 +65,29 @@
         @click="goIndex(currentPage + 2)"
         title="下两页"
       />
-      <span
-        class="card-box"
+      <button
+        type="button"
+        class="page-btn num"
         v-show="currentPage >= (pages - 2)"
         :class="{active: currentPage === pages-1}"
         @click="goIndex(pages-1)"
-      >{{ pages-1 }}</span>
+      >{{ pages-1 }}</button>
 
       <!-- 五号位 -->
-      <span
-        class="card-box"
+      <button
+        type="button"
+        class="page-btn num"
         :class="{active: currentPage === pages}"
         @click="goIndex(pages)"
-      >{{pages}}</span>
+      >{{pages}}</button>
     </div>
 
-    <span
-      class="card-box next iconfont icon-jiantou-you"
-      :class="{disabled: currentPage === pages}"
+    <button
+      type="button"
+      class="page-btn next"
+      :disabled="currentPage === pages"
       @click="goNext()"
-    >
-      <p>下一页</p>
-    </span>
+    >下一页</button>
   </div>
 </template>
 
@@ -96,7 +100,7 @@ export default {
     },
     perPage: { // 每页长
       type: Number,
-      default: 10
+      default: 6
     },
     currentPage: { // 当前页
       type: Number,
@@ -149,12 +153,63 @@ export default {
 <style lang='stylus'>
 .pagination
   position relative
-  height 60px
+  min-height 60px
   text-align center
+  display flex
+  flex-wrap wrap
+  align-items center
+  justify-content center
+  gap 8px
+
+  // 设计稿：统一胶囊按钮
+  .page-btn
+    min-width 38px
+    height 38px
+    padding 0 14px
+    margin 0
+    box-sizing border-box
+    display inline-flex
+    align-items center
+    justify-content center
+    border-radius 10px
+    border 1px solid var(--borderColor)
+    background var(--mainBg)
+    color var(--text2)
+    font-size 14px
+    font-family inherit
+    line-height 1
+    cursor pointer
+    white-space nowrap
+    flex-shrink 0
+    transition border-color 0.2s, color 0.2s, background 0.2s, box-shadow 0.2s
+    &:disabled
+      cursor not-allowed
+      opacity 0.45
+      color var(--text3)
+      border-color var(--borderColor)
+      background var(--mainBg)
+    &:not(:disabled):hover
+      border-color $accentColor
+      color $accentColor
+    &.active
+      background $accentColor
+      border-color $accentColor
+      color #fff
+      font-weight 600
+      opacity 1
+      &:not(:disabled):hover
+        color #fff
+        border-color $accentColor
+        box-shadow 0 4px 12px -4px rgba(17, 168, 205, 0.45)
+    &.num
+      padding 0 0.35rem
+
   span
     line-height 1rem
     opacity 0.9
     cursor pointer
+    white-space nowrap
+    flex-shrink 0
     &:hover
       color $accentColor
     &.ellipsis
@@ -171,61 +226,30 @@ export default {
           &:hover
             &::before
               content '»'
-  > span
-    position absolute
-    top 0
-    padding 1rem 1.2rem
-    font-size 0.95rem
-    &.disabled
-      color rgba(125, 125, 125, 0.5)
-    &.prev
-      left 0
-      border-radius 8px 32px 32px 8px
-    &.next
-      right 0
-      border-radius 8px 32px 32px 8px
-      &::before
-        float right
-        margin-left 0.3rem
-    p
-      display inline
-      line-height 0.95rem
+
   .pagination-list
-    span
-      display inline-block
-      width 2.5rem
-      height 2.5rem
-      line-height 2.5rem
-      margin 0.3rem
-      &.active
-        background $accentColor
-        color var(--mainBg)
-@media (max-width 800px)
+    display flex
+    flex-wrap wrap
+    align-items center
+    justify-content center
+    gap 8px
+
+@media (max-width 640px)
   .pagination
-    > span
-      padding 1rem 1.5rem
-      p
-        display none
-// 719px
-@media (max-width $MQMobile)
-  .pagination
-    > span // 左右按钮
-      padding 0.9rem 1.5rem
+    gap 6px
+    .page-btn
+      min-width 32px
+      height 32px
+      padding 0 10px
+      font-size 13px
+      border-radius 8px
     .pagination-list
-      span
-        width 2.3rem
-        height 2.3rem
-        line-height 2.3rem
-        margin 0.25rem
+      gap 6px
 @media (max-width 390px)
   .pagination
-    > span // 左右按钮
-      padding 0.8rem 1.3rem
-    .pagination-list
-      span
-        width 2rem
-        height 2rem
-        line-height 2rem
-        margin 0.1rem
-        margin-top 0.3rem
+    .page-btn
+      min-width 30px
+      height 30px
+      font-size 12.5px
+      padding 0 8px
 </style>

@@ -51,6 +51,8 @@ module.exports = {
 
   sidebar: 'structuring', // 侧边栏  'structuring' | { mode: 'structuring', collapsable: Boolean} | 'auto' | 自定义    温馨提示：目录页数据依赖于结构化的侧边栏数据，如果你不设置为'structuring',将无法使用目录页
 
+  homeRec: true, // 首页随机推荐卡，false 关闭；也可在 index.md frontmatter 用 recCard: false 单页关闭
+
   author: {
     // 文章默认的作者信息，可在md文件中单独配置此信息 String | {name: String, link: String}
     name: 'di', // 必需

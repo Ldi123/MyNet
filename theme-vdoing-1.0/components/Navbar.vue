@@ -26,14 +26,18 @@
         'max-width': linksWrapMaxWidth + 'px'
       } : {}"
     >
-      <AlgoliaSearchBox
-        v-if="isAlgoliaSearch"
-        :options="algolia"
-      />
-      <SearchBox
-        v-else-if="$site.themeConfig.search !== false && $page.frontmatter.search !== false"
-      />
-      <NavLinks class="can-hide" />
+      <div class="nav-links-slot">
+        <NavLinks class="can-hide" />
+      </div>
+      <div class="nav-tools">
+        <AlgoliaSearchBox
+          v-if="isAlgoliaSearch"
+          :options="algolia"
+        />
+        <SearchBox
+          v-else-if="$site.themeConfig.search !== false && $page.frontmatter.search !== false"
+        />
+      </div>
     </div>
   </header>
 </template>
@@ -115,6 +119,19 @@ $navbar-horizontal-padding = 1.5rem
     right $navbar-horizontal-padding
     top $navbar-vertical-padding
     display flex
+    align-items center
+    gap 10px
+    .nav-links-slot
+      flex 1 1 auto
+      min-width 0
+      display flex
+      align-items center
+    .nav-tools
+      flex 0 0 auto
+      display flex
+      align-items center
+      gap 10px
+      margin-left auto
     .search-box
       flex 0 0 auto
       vertical-align top
@@ -126,6 +143,12 @@ $navbar-horizontal-padding = 1.5rem
   .navbar
     .site-name
       display none
+    .links
+      max-width none !important
+      .nav-links-slot
+        display none
+      .nav-tools
+        margin-left auto
 @media (max-width $MQMobile)
   .navbar
     padding-left 4rem
@@ -133,6 +156,7 @@ $navbar-horizontal-padding = 1.5rem
       display none
     .links
       padding-left 1.5rem
+      right $navbar-horizontal-padding
     .site-name
       width calc(100vw - 9.4rem)
       overflow hidden
