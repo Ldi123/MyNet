@@ -1,0 +1,103 @@
+# Linux定时器
+
+> 来源: https://ldi123.tk/MyNet/pages/a7fd8a/
+> 日期: 2022-04-22 20:20:53
+
+#### Linux定时执行SQL操作步骤
+
+1、新建脚本文件，例如（.sh文件，.py文件等）
+
+```shell
+touch test.sh
+touch test.sql
+```
+
+2、给脚本添加可执行权限
+
+```shell
+chmod +x test.sh
+```
+
+3、编辑脚本
+
+```shell
+vi test.sh
+```
+
+输入要执行的命令(这里以连接MySQL执行SQL语句为例)，其中`-u`后面的xxx是登录MySQL的用户名，`-p`后面的`xxx`是你的登录密码，后面的`test`是要连接的数据库名称，最后是把test.sql中的内容重定向到数据库执行。
+
+```sh
+#!/bin/sh
+mysql -uXXX -P3306 -pXXX  test < test.sql
+```
+
+编辑`test.sql`文件
+
+```sh
+vi test.sql
+```
+
+在`test.sql`文件中输入要执行的SQL
+
+```sql
+select * from abc where id = '1' limit 1
+```
+
+4、添加`crontab` 定时任务
+
+执行命令：
+
+```shell
+crontab -e
+```
+
+输入`i`进入编辑模式，在定时任务列表中添加一条任务：
+
+```shell
+10 16 * * *  sh test.sh > /root/res.txt 2>&1
+```
+
+添加完成后，按`esc`键，输入`:wq`即可保存定时器，然后定时器就会在指定的时间执行这条任务了
+
+注：这条命令的意思是每天下午16点10分执行`test.sh`脚本，将执行结果（包括错误信息）输出到root目录下的`res.txt`文件中
+
+5、`crontab`  格式说明
+
+```shell
+minute   hour   day   month   week   command
+# For details see man 4 crontabs
+# Example of job definition:
+.---------------------------------- minute (0 - 59) 表示分钟
+|  .------------------------------- hour (0 - 23)   表示小时
+|  |  .---------------------------- day of month (1 - 31)   表示日期
+|  |  |  .------------------------- month (1 - 12) OR jan,feb,mar,apr ... 表示月份
+|  |  |  |  .---------------------- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat  表示星期（0 或 7 表示星期天）
+|  |  |  |  |  .------------------- username  以哪个用户来执行 
+|  |  |  |  |  |            .------ command  要执行的命令，可以是系统命令，也可以是自己编写的脚本文件
+|  |  |  |  |  |            |
+*  *  *  *  * user-name  command to be executed
+```
+
+6、`Linux`中`2>&1` 的含义
+
+| 名称                 | 代码 | 操作符           | Java中表示 | Linux 下文件描述符（Debian 为例)             |
+| :------------------- | :--- | :--------------- | :--------- | :------------------------------------------- |
+| 标准输入(stdin)      | 0    | < 或 <<          | System.in  | /dev/stdin -> /proc/self/fd/0 -> /dev/pts/0  |
+| 标准输出(stdout)     | 1    | >, >>, 1> 或 1>> | System.out | /dev/stdout -> /proc/self/fd/1 -> /dev/pts/0 |
+| 标准错误输出(stderr) | 2    | 2> 或 2>>        | System.err | /dev/stderr -> /proc/self/fd/2 -> /dev/pts/0 |
+
+含义：将标准错误输出重定向到标准输出
+
+解释：
+
+```bash
+xxx.sh >log 2>&1 
+```
+
+- 本来1----->屏幕 （1指向屏幕）
+- 执行>log后， 1----->log (1指向log)
+- 执行2>&1后， 2----->1 (2指向1，而1指向log,因此2也指向了log)
+
+7、分享一个好用的`crontab` 在线工具，可以很直观的验证我们写的`crontab`表达式是否正确
+
+[在线crontab表达式执行时间计算](https://www.matools.com/crontab)

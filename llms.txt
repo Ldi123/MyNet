@@ -1,0 +1,57 @@
+# IamDi 知识库
+
+> 简洁、易用的博客系统。个人技术笔记与知识库，涵盖 Java、前端、运维、学习与生活记录。
+
+## 博客
+- [一个普通话学习站的完整复盘](https://ldi123.tk/MyNet/pages/d36d22/): 2026 年 8 月底，我用两个晚上做了一个普通话二级考试辅助学习站：Flask 后端 + 原生前端 + Docker Compose 部署，包含听音选拼音、三关闯关、错题本、数据看板、录音 A/B 
+- [传统 Spring MVC 项目接口改造 CXF WebService 踩坑复盘](https://ldi123.tk/MyNet/pages/d30820/): 项目类型： 传统 Spring MVC / SSM 项目（非 Spring Boot）
+- [OpenClaw 安装失败经验复盘文档](https://ldi123.tk/MyNet/pages/17c085/): ❌ 错误现象 ：
+- [动态规划通用解题技巧和步骤](https://ldi123.tk/MyNet/pages/5d53fc/): 核心思想：明确dp[i]或dp\[i][j]代表什么
+- [阿里开发手册_学习笔记](https://ldi123.tk/MyNet/pages/62a0e5/): 【推荐】不要使用一个常量类维护所有常量，应该按常量功能进行归类，分开维护。如: 缓存相关的常量放在类: CacheConsts 下；系统配置相关的常量放在类: ConfigConsts 下。
+- [一个注解引发的惨案](https://ldi123.tk/MyNet/pages/dbb14a/): 这真是一个让人自闭的问题，也是一个低级的错误，排查了半个多小时终于解决了
+- [gitignore失效问题的解决办法](https://ldi123.tk/MyNet/pages/b293db/): 如果先使用 npm 创建了项目，然后才创建的.gitignore文件，那么在提交时本地Git并不会忽略相应的文件和路径。
+- [C语言](https://ldi123.tk/MyNet/pages/93bead/): 百度百科的解释 ：逗号表达式，是C语言中的逗号运算符，优先级别最低，它将两个及其以上的式子连接起来，从左往右逐个计算表达式，整个表达式的值为最后一个表达式的值。
+- [基础操作](https://ldi123.tk/MyNet/pages/228abc/): 1. SUM（3，2，TRUE) 计算结果
+- [计算机基础知识](https://ldi123.tk/MyNet/pages/f687fb/): 实参 形参（实参传数给形参，形参获得实参的数值），改变形参不改变原先的实参，因为两者在获得值之后没有任何关系。
+- [Linux定时器](https://ldi123.tk/MyNet/pages/a7fd8a/): 1、新建脚本文件，例如（.sh文件，.py文件等）
+- [JavaScript笔记](https://ldi123.tk/MyNet/pages/312fd7/)
+- [MySQL运维](https://ldi123.tk/MyNet/pages/f11844/): 在mysql中，筛选非空的时候经常会用到 is not null 和 !=null ，这两种方法单从字面上来看感觉是差不多的，其实如果去运行一下试试的话差别会很大！
+- [uni-app](https://ldi123.tk/MyNet/pages/f3eda5/): [渲染层网络层错误] Failed to load local image resource /pages/xxx
+- [经验](https://ldi123.tk/MyNet/pages/0aed3d/): 1. 把components写成了component
+- [前端](https://ldi123.tk/MyNet/pages/e3ff9d/): 在开发前端的时候，因为有很多值数据，但这些值从后台传过来的时候，有很多可能性，如：null, undefined, 空字符, "null", "undefined"，排除这些，其他应该就差不多是正常的
+- [Java相关](https://ldi123.tk/MyNet/pages/93f462/): funtion()
+
+## 技术
+- [阿里云DataV数据可视化基础操作与案例分享](https://ldi123.tk/MyNet/pages/0096d6/): ​ DataV数据可视化是使用可视化应用的方式来分析并展示庞杂数据的阿里云产品。DataV旨在通过图形化的界面帮助不同专业背景的用户轻松搭建专业水准的可视化应用，满足会议展览、业务监控、风险预警、地理
+- [插件测试](https://ldi123.tk/MyNet/pages/c685ad/): 引入：只需在你想要插入的地方加入 <Boxx/ 即可（如上）
+- [博客搭建](https://ldi123.tk/MyNet/pages/075c25/)
+- [Mybatis-Plus](https://ldi123.tk/MyNet/pages/ce176b/)
+
+## 更多
+- [踩坑记](https://ldi123.tk/MyNet/pages/1ae063/): 今天在新建一个Spring Boot 项目时，遇到了一个奇怪的问题
+- [感想](https://ldi123.tk/MyNet/pages/52380f/): 人生没有白走的路<br
+- [娱乐](https://ldi123.tk/MyNet/pages/89aa05/): 接着金钱豹的变种也出现了，可萌可帅可天真可绿茶。也是，谁能拒绝一只可爱又有钱的豹豹呢
+- [容器](https://ldi123.tk/MyNet/pages/945e0d/): （收集了自己比较喜欢的现代诗）
+- [投资理财](https://ldi123.tk/MyNet/pages/0dbdb0/): 任何投资本质上都是低位买入，高位卖出，但现实中，做投资并不纯粹。除了要面对市场的涨涨跌跌，还有各种场外的降维打击。比如要买房，要结婚，生病了要用钱，逼着你赎回。所以要用闲钱投资。
+- [友情链接](https://ldi123.tk/MyNet/pages/2f2b3d/): 格式：(点击代码块右上角一键复制)
+- [技巧](https://ldi123.tk/MyNet/pages/686283/)
+- [心情](https://ldi123.tk/MyNet/pages/516fb5/)
+- [生活](https://ldi123.tk/MyNet/pages/e6661d/)
+- [学习](https://ldi123.tk/MyNet/pages/0ce1f5/)
+
+## 关于
+- [关于](https://ldi123.tk/MyNet/pages/a35c2a/): 这是一个兼具博客文章、知识管理、文档查找的个人网站！
+
+## 收藏夹
+- [资源分享合集](https://ldi123.tk/MyNet/pages/4ff624/): PandaOCR
+- [新闻播报](https://ldi123.tk/MyNet/pages/5d8671/)
+- [收集的资料](https://ldi123.tk/MyNet/pages/d2a0b5/): PDF转Word
+- [常用网站索引](https://ldi123.tk/MyNet/pages/2ff955/): 图文卡片列表格式:
+- [常用的前端轮子](https://ldi123.tk/MyNet/pages/d61501/): Ant Design
+- [网站](https://ldi123.tk/MyNet/pages/e0b30c/): panjiachen
+
+## 随笔
+- [小组件](https://ldi123.tk/MyNet/pages/7ab227/)
+- [成都](https://ldi123.tk/MyNet/pages/0c84c6/): 终于回来了，这座一毕业就心心念念的城市
+- [现代诗](https://ldi123.tk/MyNet/pages/3da2b9/): 我多么希望，有一个门口
+- [更新日志](https://ldi123.tk/MyNet/pages/2642b4/): ​ 作者信息——头像不显示：代码中使用的是相对路径，但图片展示需要完整路径，因此需要加上
