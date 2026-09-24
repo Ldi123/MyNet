@@ -85,9 +85,9 @@ export default {
       &.more
         // color $accentColor
       &:not(.active):hover
-        color $accentColor
+        color var(--festColor, $accentColor)
         background #f8f8f8
-        border-color $accentColor
+        border-color var(--festColor, $accentColor)
         span
           opacity 0.8
       span
@@ -104,7 +104,7 @@ export default {
         opacity 0.6
         transition opacity 0.3s
       &.active
-        background $accentColor
+        background var(--festColor, $accentColor)
         color var(--mainBg)
         padding-left 0.8rem
         border-radius 1px

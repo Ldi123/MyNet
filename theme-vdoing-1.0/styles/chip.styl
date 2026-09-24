@@ -53,6 +53,20 @@
   padding 5px 14px
   border-radius 999px
   margin-bottom 0
+.hello-row
+  display flex
+  align-items center
+  flex-wrap wrap
+  gap 8px
+.fest-chip
+  display inline-flex
+  align-items center
+  gap 5px
+  font-size 12.5px
+  font-weight 600
+  padding 5px 12px
+  border-radius 999px
+  line-height 1.4
 .hello .dot
   width 7px
   height 7px
@@ -60,7 +74,7 @@
   background #34c759
   box-shadow 0 0 0 3px rgba(52, 199, 89, .25)
 .hero-title
-  font-size 2.15rem
+  font-size 1.75rem
   line-height 1.25
   font-weight 700
   letter-spacing -0.02em
@@ -71,6 +85,8 @@
   em
     font-style normal
     color $accentColor
+  @media (max-width 640px)
+    font-size 1.35rem
 .hero-left .sub
   font-size 15.5px
   color var(--text2)
@@ -116,7 +132,7 @@
   border none
   text-decoration none
   &.primary
-    background $accentColor
+    background var(--festColor, $accentColor)
     color #fff
     box-shadow 0 6px 18px -6px rgba(17, 168, 205, .55)
     &:hover
@@ -126,11 +142,11 @@
       box-shadow 0 10px 24px -6px rgba(17, 168, 205, .55)
   &.ghost
     background var(--chipBg)
-    color $accentColor
+    color var(--festColor, $accentColor)
     &:hover
       transform translateY(-2px)
       background rgba(17, 168, 205, .18)
-      color $accentColor
+      color var(--festColor, $accentColor)
 .cta-social
   display flex
   gap 8px
@@ -141,7 +157,7 @@
   height 44px
   border-radius 50%
   background var(--chipBg)
-  color $accentColor
+  color var(--festColor, $accentColor)
   display grid
   place-items center
   font-size 15px
@@ -149,7 +165,7 @@
   text-align center
   line-height 44px
   &:hover
-    background $accentColor
+    background var(--festColor, $accentColor)
     color #fff
     transform translateY(-2px)
 

@@ -71,6 +71,9 @@
 
     <BodyBgImg v-if="$themeConfig.bodyBgImg" />
 
+    <!-- 节日装饰层（按日期窗口自动上下线） -->
+    <FestivalDecor />
+
     <!-- 自定义html插入左右下角的小窗口 -->
     <div
       class="custom-html-window custom-html-window-lb"
@@ -106,6 +109,7 @@ import Sidebar from '@theme/components/Sidebar.vue'
 import Buttons from '@theme/components/Buttons.vue'
 import Footer from '@theme/components/Footer'
 import BodyBgImg from '@theme/components/BodyBgImg'
+import FestivalDecor from '@theme/components/FestivalDecor'
 import { resolveSidebarItems } from '../util'
 import storage from 'good-storage' // 本地存储
 import _ from 'lodash'
@@ -114,7 +118,7 @@ const MOBILE_DESKTOP_BREAKPOINT = 719 // refer to config.styl
 const NAVBAR_HEIGHT = 58 // 导航栏高度
 
 export default {
-  components: { Home, Navbar, Page, CategoriesPage, TagsPage, ArchivesPage, Sidebar, Footer, Buttons, BodyBgImg },
+  components: { Home, Navbar, Page, CategoriesPage, TagsPage, ArchivesPage, Sidebar, Footer, Buttons, BodyBgImg, FestivalDecor },
 
   data() {
     return {

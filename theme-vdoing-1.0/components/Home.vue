@@ -388,14 +388,14 @@ export default {
         width 4px
         height 18px
         border-radius 2px
-        background linear-gradient(180deg, $accentColor, #0B7E9E)
+        background linear-gradient(180deg, var(--festColor, $accentColor), #0B7E9E)
     a
       font-size 0.82rem
       font-weight 600
       color var(--textLightenColor)
       transition color 0.2s
       &:hover
-        color $accentColor
+        color var(--festColor, $accentColor)
 
   .main-wrapper
     margin 0

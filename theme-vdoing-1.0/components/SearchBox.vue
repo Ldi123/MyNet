@@ -293,7 +293,7 @@ export default {
     background-size 1rem
     &:focus
       cursor auto
-      border-color $accentColor
+      border-color var(--festColor, $accentColor)
   .suggestions
     background var(--mainBg)
     width 24rem
@@ -339,7 +339,7 @@ export default {
     &.focused
       background-color var(--customBlockBg)
       a
-        color $accentColor
+        color var(--festColor, $accentColor)
 
 @media (max-width: $MQNarrow)
   .search-box

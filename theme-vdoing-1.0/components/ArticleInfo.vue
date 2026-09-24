@@ -42,6 +42,9 @@
         <div class="date iconfont icon-riqi" title="创建时间" v-if="date">
           <a href="javascript:;">{{ date }}</a>
         </div>
+        <div class="date" title="预计阅读" v-if="readingTime">
+          <a href="javascript:;">⏱ {{ readingTime }} 分钟</a>
+        </div>
         <div
           class="date iconfont icon-wenjian"
           title="分类"
@@ -82,7 +85,8 @@ export default {
       classifyList: [],
       cataloguePermalink: '',
       author: null,
-      categories: []
+      categories: [],
+      readingTime: null
     }
   },
   created() {
@@ -125,6 +129,7 @@ export default {
       this.cataloguePermalink = cataloguePermalink
       this.author = author
       this.categories = categories
+      this.readingTime = pageInfo.frontmatter.readingTime || null
     },
 
     getLink(item) {

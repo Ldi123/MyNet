@@ -222,14 +222,14 @@ export default {
     transition all 0.5s
     background var(--blurBg)
     &.hover
-      background $accentColor
-      box-shadow 0 0 15px $accentColor
+      background var(--festColor, $accentColor)
+      box-shadow 0 0 15px var(--festColor, $accentColor)
       &:before
         color #fff
     @media (any-hover hover)
       &:hover
-        background $accentColor
-        box-shadow 0 0 15px $accentColor
+        background var(--festColor, $accentColor)
+        box-shadow 0 0 15px var(--festColor, $accentColor)
         &:before
           color #fff
     .select-box

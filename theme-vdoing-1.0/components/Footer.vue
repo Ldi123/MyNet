@@ -1,5 +1,10 @@
 <template>
   <div class="footer">
+    <!-- 节日祝福语（按日期窗口自动显示） -->
+    <div class="fest-greeting" v-if="fest" :style="{ color: fest.vars.color }">
+      {{ fest.greeting }}
+    </div>
+
     <div class="icons" v-if="social && social.icons">
       <a
         :href="item.link"
@@ -41,6 +46,7 @@
 
 <script>
 import moment from 'moment';
+import { getActiveFestival } from '@theme/festival'
 let startTime='2021-12-08 00:00:00';
 let script_bsz;
 export default {
@@ -50,12 +56,14 @@ export default {
 			hours:0,
 			minutes:0,
 			seconds:0,
+			fest: null,
 		}
 	},
 	mounted(){
 		script_bsz=require("busuanzi.pure.js");
   script_bsz.fetch();
   setInterval(this.getRTime,1000);
+  this.fest = getActiveFestival()
 	},
  computed: {
    social() {
@@ -101,6 +109,11 @@ export default {
   box-sizing border-box
   font-size 0.85rem
   transition all 0.2s ease
+  .fest-greeting
+    font-size 0.95rem
+    font-weight 600
+    margin-bottom 14px
+    letter-spacing 0.02em
   > span
     line-height 1.5rem
   .icons

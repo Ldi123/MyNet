@@ -189,17 +189,17 @@ export default {
       border-color var(--borderColor)
       background var(--mainBg)
     &:not(:disabled):hover
-      border-color $accentColor
-      color $accentColor
+      border-color var(--festColor, $accentColor)
+      color var(--festColor, $accentColor)
     &.active
-      background $accentColor
-      border-color $accentColor
+      background var(--festColor, $accentColor)
+      border-color var(--festColor, $accentColor)
       color #fff
       font-weight 600
       opacity 1
       &:not(:disabled):hover
         color #fff
-        border-color $accentColor
+        border-color var(--festColor, $accentColor)
         box-shadow 0 4px 12px -4px rgba(17, 168, 205, 0.45)
     &.num
       padding 0 0.35rem
@@ -211,7 +211,7 @@ export default {
     white-space nowrap
     flex-shrink 0
     &:hover
-      color $accentColor
+      color var(--festColor, $accentColor)
     &.ellipsis
       opacity 0.5
       &::before

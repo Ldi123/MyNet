@@ -16,9 +16,14 @@
             >{{ c }}</span
           >
           <span class="pill warm" v-if="item.frontmatter.sticky">置顶</span>
-          <span class="date" v-if="item.frontmatter.date">{{
-            item.frontmatter.date.split(' ')[0]
-          }}</span>
+          <div class="meta-right">
+            <span class="rt" v-if="item.frontmatter.readingTime"
+              >⏱ {{ item.frontmatter.readingTime }} 分钟</span
+            >
+            <span class="date" v-if="item.frontmatter.date">{{
+              item.frontmatter.date.split(' ')[0]
+            }}</span>
+          </div>
         </div>
 
         <div class="title-wrapper">
@@ -184,8 +189,16 @@ export default {
       gap 8px
       margin-bottom 10px
       flex-wrap wrap
-      .date
+      .meta-right
         margin-left auto
+        display inline-flex
+        align-items center
+        gap 8px
+      .rt
+        font-size 12.5px
+        color var(--text3)
+        white-space nowrap
+      .date
         font-size 12.5px
         color var(--text3)
         font-variant-numeric tabular-nums
@@ -196,7 +209,7 @@ export default {
         color var(--textColor)
         transition color 0.2s
         &:hover
-          color $accentColor
+          color var(--festColor, $accentColor)
       h2
         margin 0 0 9px
         font-size 1.12rem
@@ -255,7 +268,7 @@ export default {
           width 20px
           height 20px
           border-radius 50%
-          background linear-gradient(135deg, $accentColor, #0B7E9E)
+          background linear-gradient(135deg, var(--festColor, $accentColor), #0B7E9E)
           color #fff
           font-size 10px
           display grid
@@ -264,7 +277,7 @@ export default {
           line-height 1
       .readmore
         margin-left auto
-        color $accentColor
+        color var(--festColor, $accentColor)
         font-weight 600
         opacity 0
         transform translateX(-8px)

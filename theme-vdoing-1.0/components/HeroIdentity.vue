@@ -8,14 +8,22 @@
         :alt="blogger.name"
         @error="$event.target.style.display = 'none'"
       />
-      <div class="hero-id-text">
-        <span class="hello"
-          ><span class="dot"></span>你好，我是 {{ bloggerName }}</span
-        >
-        <div class="id-slogan" v-if="blogger && blogger.slogan">
-          {{ blogger.slogan }}
+        <div class="hero-id-text">
+          <div class="hello-row">
+            <span class="hello"
+              ><span class="dot"></span>{{ helloPrefix }}，我是 {{ bloggerName }}</span
+            >
+            <span
+              class="fest-chip"
+              v-if="fest"
+              :style="{ color: fest.vars.color, background: fest.vars.bg }"
+              >{{ fest.corner.char }} {{ fest.name }}</span
+            >
+          </div>
+          <div class="id-slogan" v-if="blogger && blogger.slogan">
+            {{ blogger.slogan }}
+          </div>
         </div>
-      </div>
     </div>
 
     <h1 class="hero-title">
@@ -61,6 +69,8 @@
 </template>
 
 <script>
+import { getActiveFestival } from '@theme/festival'
+
 const SITE_START = new Date('2021-12-08 00:00:00').getTime()
 
 export default {
@@ -76,7 +86,9 @@ export default {
   },
   data () {
     return {
-      runDays: 0
+      runDays: 0,
+      fest: null,
+      helloPrefix: '你好'
     }
   },
   computed: {
@@ -92,6 +104,20 @@ export default {
   },
   mounted () {
     this.runDays = Math.floor((Date.now() - SITE_START) / 1000 / 60 / 60 / 24)
+    this.fest = getActiveFestival()
+    this.helloPrefix = this.getTimeGreeting()
+  },
+  methods: {
+    // 按访客本地时间切换问候语
+    getTimeGreeting () {
+      const h = new Date().getHours()
+      if (h >= 5 && h < 9) return '早上好 ☀️'
+      if (h >= 9 && h < 12) return '上午好 🌤'
+      if (h >= 12 && h < 14) return '中午好 🌞'
+      if (h >= 14 && h < 18) return '下午好 🌤'
+      if (h >= 18 && h < 23) return '晚上好 🌙'
+      return '夜深了 🌃'
+    }
   }
 }
 </script>

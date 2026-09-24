@@ -70,6 +70,25 @@ module.exports = (options, ctx) => {
   const enableSmoothScroll = themeConfig.smoothScroll === true
 
   return {
+    // 构建期统计阅读时长（分钟），写入 frontmatter 供列表页/文章头部展示
+    extendPageData ($page) {
+      const raw = $page._strippedContent
+      if (!raw) return
+      const fm = $page.frontmatter
+      if (!fm || fm.home || fm.article === false || fm.pageComponent) return
+      const text = raw
+        .replace(/```[\s\S]*?```/g, '')
+        .replace(/`[^`]*`/g, '')
+        .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+        .replace(/\[[^\]]*\]\([^)]*\)/g, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/[#|*_>~]/g, '')
+        .replace(/\s+/g, '')
+      if (text.length > 0) {
+        fm.readingTime = Math.max(1, Math.round(text.length / 400))
+      }
+    },
+
     alias() {
       return {
         '@AlgoliaSearchBox': isAlgoliaSearch
