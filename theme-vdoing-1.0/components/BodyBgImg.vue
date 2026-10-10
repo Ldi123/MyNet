@@ -24,18 +24,18 @@ export default {
     let { bodyBgImg, bodyBgImgOpacity } = this.$themeConfig
 
     if (type(bodyBgImg) === 'string') {
-      this.bgImg = bodyBgImg
+      this.bgImg = this.$withBase(bodyBgImg)
     } else if (type(bodyBgImg) === 'array') {
       let count = 0
       let timer = null
 
-      this.bgImg = bodyBgImg[count]
+      this.bgImg = this.$withBase(bodyBgImg[count])
       clearInterval(timer)
       timer = setInterval(() => {
         if (++count >= bodyBgImg.length) {
           count = 0
         }
-        this.bgImg = bodyBgImg[count]
+        this.bgImg = this.$withBase(bodyBgImg[count])
       }, 300000);
     }
 

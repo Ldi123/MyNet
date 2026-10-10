@@ -21,16 +21,9 @@ module.exports = {
   // categoryText: '随笔', // 碎片化文章（_posts文件夹的文章）预设生成的分类值，默认'随笔'
 
   bodyBgImg: [
-		// 'https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/2022%E7%B4%A0%E6%9D%90/7U0EB8.2t676t173qo0.jpg',
-		// 'https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/2022素材/b92a3347ae83be517d260dd99f6b42d5.jpg',
-  //   "http://114.55.7.136:8088/blog/c439b4b1ca11470c9f78b6ec51066ee4.jpg",
-  //   "http://114.55.7.136:8088/blog/48831ab97cc94279abced695cc18d4a0.jpg",
-  //   "http://114.55.7.136:8088/blog/de967fb42715443d80e05b4cdff626cf.jpg",
-		// 'http://114.55.7.136:8088/blog/c439b4b1ca11470c9f78b6ec51066ee4.jpg',
-		// 'http://114.55.7.136:8088/randomImg' // 随机图片，由于浏览器限制https访问http资源，会自动把http转成https,只能以后认证后使用了
-  'https://photo.sibnet.ru/upload/imgbig/1707018118371477515.jpg',
-		'https://cdn.jsdelivr.net/gh/xugaoyi/image_store/blog/20200507175845.jpeg',
-    'https://cdn.jsdelivr.net/gh/xugaoyi/image_store/blog/20200507175846.jpeg'
+		// 原外链图床已不可用（photo.sibnet.ru 403），改为本地自托管（public/img）
+		'/img/bg1.jpg',
+    '/img/bg2.jpg'
   ], // body背景大图，默认无。 单张图片 String || 多张图片 Array, 多张图片时每隔15秒换一张。
   // bodyBgImgOpacity: 0.5, // body背景图透明度，选值 0 ~ 1.0, 默认0.5
 
@@ -60,7 +53,7 @@ module.exports = {
   },
   blogger: {
     // 博主信息，显示在首页侧边栏
-    avatar: 'https://photo.sibnet.ru/upload/imgmid/1707018118371477515.jpg',
+    avatar: '/img/info.png', // 原 photo.sibnet.ru 头像已 403，回退为站内图（曾用头像）
     name: 'ldi',
     slogan: '喜欢折腾！',
   },

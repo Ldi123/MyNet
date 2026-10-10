@@ -17,9 +17,6 @@
           >
           <span class="pill warm" v-if="item.frontmatter.sticky">置顶</span>
           <div class="meta-right">
-            <span class="rt" v-if="item.frontmatter.readingTime"
-              >⏱ {{ item.frontmatter.readingTime }} 分钟</span
-            >
             <span class="date" v-if="item.frontmatter.date">{{
               item.frontmatter.date.split(' ')[0]
             }}</span>
@@ -194,10 +191,6 @@ export default {
         display inline-flex
         align-items center
         gap 8px
-      .rt
-        font-size 12.5px
-        color var(--text3)
-        white-space nowrap
       .date
         font-size 12.5px
         color var(--text3)

@@ -4,7 +4,6 @@
     <section
       class="hero card-box"
       :class="{ 'hide-banner': !showBanner }"
-      v-if="!compactLayout"
       ref="heroTop"
     >
       <HeroIdentity
@@ -60,7 +59,7 @@
         <div
           class="hero-right as-list"
           :class="{ 'hide-banner': !showBanner }"
-          v-if="compactLayout && showBanner && showRec"
+          v-if="showBanner && showRec"
         >
           <RecCard ref="recList" @close="recClosed = true" />
         </div>
@@ -94,7 +93,7 @@
         <!-- 紧凑：Hero 沉到分页下方 -->
         <section
           class="hero card-box hero-sunk"
-          v-if="compactLayout && showBanner"
+          v-if="showBanner"
         >
           <HeroIdentity
             :postCount="total"
@@ -150,12 +149,9 @@ import TagsBar from '@theme/components/TagsBar'
 import HeroIdentity from '@theme/components/HeroIdentity'
 import RecCard from '@theme/components/RecCard'
 
-const COMPACT_BREAKPOINT = 640 // 设计稿手机端布局断点
-
 export default {
   data () {
     return {
-      compactLayout: false,
       total: 0,
       perPage: 6,
       currentPage: 1,
@@ -214,25 +210,6 @@ export default {
     if (this.$route.query.p) {
       this.currentPage = Number(this.$route.query.p)
     }
-    this.mq = window.matchMedia(`(max-width: ${COMPACT_BREAKPOINT}px)`)
-    this.onCompactChange = () => {
-      this.compactLayout = this.mq.matches
-    }
-    this.onCompactChange()
-    if (this.mq.addEventListener) {
-      this.mq.addEventListener('change', this.onCompactChange)
-    } else if (this.mq.addListener) {
-      this.mq.addListener(this.onCompactChange)
-    }
-  },
-  beforeDestroy () {
-    if (this.mq && this.onCompactChange) {
-      if (this.mq.removeEventListener) {
-        this.mq.removeEventListener('change', this.onCompactChange)
-      } else if (this.mq.removeListener) {
-        this.mq.removeListener(this.onCompactChange)
-      }
-    }
   },
   watch: {
     '$route.query.p' () {
@@ -287,13 +264,14 @@ export default {
       margin-top 0.6rem
       margin-bottom 2rem
       padding 1.4rem 1.2rem
-      display block
+      display none
 
-  // ≤640 上移后的推荐卡（在 MainLayout 内，不在 .hero 下）
+  // ≤640 上移后的推荐卡（在 MainLayout 内，不在 .hero 下；默认隐藏，由媒体查询显示）
   .hero-right.as-list
     width 100%
     max-width none
     margin-bottom 0.9rem
+    display none
     .rec-card
       transform none
       box-shadow 0 1px 2px 0 rgba(0, 0, 0, 0.05)
@@ -469,4 +447,12 @@ export default {
       padding 1rem 1.1rem 0.9rem
     .sec-head
       margin-bottom 0.75rem
+    // 紧凑/非紧凑布局改由 CSS 断点切换（原先由 JS mounted 切 v-if，
+    // 导致线上首屏先渲染出非紧凑的旧版首页 Hero，挂载后才重排成紧凑布局）
+    .hero:not(.hero-sunk)
+      display none
+    .hero.hero-sunk
+      display block
+    .hero-right.as-list
+      display block
 </style>
