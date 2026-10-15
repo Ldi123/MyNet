@@ -46,6 +46,45 @@ module.exports = {
 
   homeRec: true, // 首页随机推荐卡，false 关闭；也可在 index.md frontmatter 用 recCard: false 单页关闭
 
+  widgets: {
+    // ===== 首页挂件（可拔插）=====
+    // 每个挂件独立互不影响：设为 false 即从首页移除，组件文件也可随时删
+    announce: {
+      // 公告条：随机展示一条，点文字换下一条，× 收起
+      rss: '', // RSS 地址，留空则不显示订阅按钮
+      list: [
+        { ico: '📢', text: '首页焕新上线，挂件可自由拔插，不喜欢的直接关掉' },
+        { ico: '🎉', text: '本站已稳定运行多年，感谢每一个路过的你' },
+        { ico: '☕', text: '夜间刷文记得切换右上角「阅读」模式护眼' }
+      ]
+    },
+    countdown: {
+      // 倒数日：只放"每年循环"的条目，已过的自动顺延到下一年，永不出现负数
+      max: 4, // 卡片宽度有限，只渲染最近的 N 个
+      showClock: true, // 标题右侧显示本地时钟
+      festivals: [
+        { label: '元旦', date: '01-01' }, // 公历节日：写 MM-DD 即可
+        { label: '国庆', date: '10-01' },
+        // 农历节日：用 lunar 指定表里的 key，日期自动查表（覆盖 2026-2035）
+        { label: '春节', lunar: 'spring' },
+        { label: '端午', lunar: 'dragonBoat' },
+        { label: '中秋', lunar: 'midAutumn' }
+      ],
+      anniversary: { label: '本站周年', date: '12-08' } // 也支持 MM-DD，自动顺延
+    },
+    lastUpdate: true, // 最近更新：零配置，自动取最新一篇文章
+    links: {
+      // 友情链接
+      items: [
+        { n: 'Vdoing', d: '主题主页', u: 'https://xugaoyi.github.io/vuepress-theme-vdoing/' },
+        { n: 'VuePress', d: '文档站', u: 'https://v1.vuepress.vuejs.org/zh/' },
+        { n: 'MDN', d: 'Web 文档', u: 'https://developer.mozilla.org/zh-CN/' },
+        { n: 'Can I use', d: '兼容性', u: 'https://caniuse.com/' }
+      ]
+    },
+    quote: true // 今日诗词：jinrishici 接口 + 本地缓存兜底 + svg 图片兜底
+  },
+
   author: {
     // 文章默认的作者信息，可在md文件中单独配置此信息 String | {name: String, link: String}
     name: 'di', // 必需

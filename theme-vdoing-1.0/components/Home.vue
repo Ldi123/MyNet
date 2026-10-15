@@ -1,5 +1,8 @@
 <template>
   <div class="home-wrapper">
+    <!-- 挂件：公告条 -->
+    <AnnounceBar v-if="widgets.announce" />
+
     <!-- 非紧凑：Hero（身份 + 标题 + 数据 + CTA + 推荐卡） -->
     <section
       class="hero card-box"
@@ -46,6 +49,16 @@
           <span class="feature-arrow" aria-hidden="true">→</span>
         </component>
       </div>
+    </div>
+
+    <!-- 挂件横排带：倒数日 / 最近更新 -->
+    <div
+      class="widget-strip"
+      :class="{ 'hide-banner': !showBanner }"
+      v-if="showStrip"
+    >
+      <CountdownCard v-if="widgets.countdown" />
+      <LastUpdatedCard v-if="widgets.lastUpdate" />
     </div>
 
     <MainLayout>
@@ -125,15 +138,8 @@
           v-if="homeSidebarB"
           v-html="homeSidebarB"
         ></div>
-        <div class="card-box poem-card">
-          <center>
-            <img
-              alt="今日诗词"
-              src="https://v2.jinrishici.com/one.svg?font-size=30&spacing=2&color=Coral"
-              style="max-width:94%; margin: 25% 0;"
-            />
-          </center>
-        </div>
+        <LinksCard v-if="widgets.links" />
+        <QuoteCard v-if="widgets.quote" />
       </template>
     </MainLayout>
   </div>
@@ -148,6 +154,11 @@ import CategoriesBar from '@theme/components/CategoriesBar'
 import TagsBar from '@theme/components/TagsBar'
 import HeroIdentity from '@theme/components/HeroIdentity'
 import RecCard from '@theme/components/RecCard'
+import AnnounceBar from '@theme/components/widgets/AnnounceBar'
+import CountdownCard from '@theme/components/widgets/CountdownCard'
+import LastUpdatedCard from '@theme/components/widgets/LastUpdatedCard'
+import LinksCard from '@theme/components/widgets/LinksCard'
+import QuoteCard from '@theme/components/widgets/QuoteCard'
 
 export default {
   data () {
@@ -159,6 +170,13 @@ export default {
     }
   },
   computed: {
+    widgets () {
+      return this.$themeConfig.widgets || {}
+    },
+    showStrip () {
+      const w = this.widgets
+      return !!(w.countdown || w.lastUpdate)
+    },
     homeData () {
       return {
         ...this.$page.frontmatter
@@ -201,7 +219,12 @@ export default {
     TagsBar,
     Pagination,
     HeroIdentity,
-    RecCard
+    RecCard,
+    AnnounceBar,
+    CountdownCard,
+    LastUpdatedCard,
+    LinksCard,
+    QuoteCard
   },
   created () {
     this.total = this.$sortPosts.length

@@ -25,12 +25,12 @@
       margin-bottom 0.9rem
     .home-content
       padding 1rem 1.5rem 0
-  .main-right
+.main-right
     >*
-      width 245px
+      width 265px
       box-sizing border-box
       @media (max-width 900px)
-        width 235px
+        width 255px
     .card-box
       margin 0 0 0.9rem 0.9rem
       padding-top 0.95rem

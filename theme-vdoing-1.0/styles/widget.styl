@@ -1,0 +1,358 @@
+// ===== 首页挂件 =====
+// 每个挂件独立样式，互不影响；统一走主题 token，三套模式自动适配
+// 拔插方式：themeConfig.widgets 里把对应开关设为 false 即可
+
+// ===== 公告条 =====
+// 半透明毛玻璃：从蓝色背景上"浮"起来，三套模式各自适配
+// 注意：深色下用"深色玻璃"而不是白色叠加，否则会透出背景图的蓝，看着发灰发淡
+.announce-bar
+  display flex
+  align-items center
+  gap 0.5rem
+  margin-bottom 0.85rem
+  padding 0.6rem 1rem
+  border-radius 14px
+  background hsla(0, 0%, 100%, 0.72)
+  backdrop-filter saturate(180%) blur(14px)
+  -webkit-backdrop-filter saturate(180%) blur(14px)
+  border 1px solid hsla(0, 0%, 100%, 0.7)
+  box-shadow 0 6px 18px -10px rgba(0, 50, 60, 0.4)
+  font-size 0.84rem
+  color var(--textColor)
+  .ico
+    flex-shrink 0
+    font-size 0.88rem
+  .txt
+    flex 1
+    min-width 0
+    cursor pointer
+    color var(--textColor)
+    transition color 0.2s
+    &:hover
+      color var(--festColor, $accentColor)
+  .rss
+    flex-shrink 0
+    width 1.5rem
+    height 1.5rem
+    border-radius 50%
+    display grid
+    place-items center
+    font-size 0.8rem
+    text-decoration none
+    background var(--chipBg)
+    color var(--festColor, $accentColor)
+    transition all 0.2s
+    &:hover
+      background var(--festColor, $accentColor)
+      color #fff
+      transform translateY(-1px)
+  .close
+    flex-shrink 0
+    width 1.4rem
+    height 1.4rem
+    border-radius 50%
+    border none
+    background transparent
+    color var(--text3)
+    cursor pointer
+    font-size 0.9rem
+    line-height 1
+    display grid
+    place-items center
+    transition all 0.2s
+    &:hover
+      background var(--customBlockBg)
+      color var(--textColor)
+
+.theme-mode-dark .announce-bar
+  background hsla(240, 4%, 14%, 0.72)
+  border-color hsla(0, 0%, 100%, 0.16)
+  box-shadow 0 6px 18px -8px rgba(0, 0, 0, 0.7)
+  color rgba(232, 232, 239, 0.92)
+  .txt
+    color rgba(232, 232, 239, 0.92)
+  .close
+    color rgba(232, 232, 239, 0.55)
+.theme-mode-read .announce-bar
+  background hsla(45, 60%, 97%, 0.75)
+  border-color rgba(153, 102, 51, 0.22)
+
+// ===== 挂件通用卡片 =====
+// 注意：右栏 .card-box 自带 padding-top/bottom 0.95rem，标题不再重复加顶部间距
+.widget-card
+  overflow hidden
+  .widget-card-title
+    display flex
+    align-items baseline
+    gap 0.5rem
+    padding 0 0.95rem
+    font-size 0.95rem
+    font-weight 700
+    color var(--textColor)
+    .t
+      display flex
+      align-items center
+    .extra
+      margin-left auto
+      display flex
+      align-items baseline
+      gap 0.5rem
+      font-size 0.72rem
+      font-weight 500
+      color var(--text3)
+      b
+        color var(--text2)
+        font-variant-numeric tabular-nums
+
+// ===== 挂件横排带 =====
+.widget-strip
+  display grid
+  grid-template-columns 1fr 1fr
+  gap 1.1rem
+  margin-bottom 1.1rem
+  // 两卡等高时，内容少的卡把内容垂直居中，避免底部留白
+  .widget-card
+    display flex
+    flex-direction column
+  .cd-list
+    flex 1
+    align-content center
+
+// 横排带的卡片不在 .main-right 里，没有 .card-box 自带内边距，需自己补
+.widget-strip
+  .widget-card
+    .widget-card-title
+      padding-top 0.9rem
+  .cd-list
+    padding-bottom 0.9rem
+  .lastup
+    padding-bottom 0.9rem
+
+// ===== 倒数日 =====
+.cd-list
+  padding 0.7rem 0.95rem 0
+  display flex
+  flex-wrap wrap
+  gap 0.6rem
+.cd-item
+  display inline-flex
+  align-items baseline
+  gap 0.3rem
+  font-size 0.78rem
+  color var(--text2)
+  background var(--chipBg)
+  padding 0.25rem 0.7rem
+  border-radius 999px
+  min-width 0
+  .lb
+    overflow hidden
+    text-overflow ellipsis
+    white-space nowrap
+  .n
+    flex-shrink 0
+    font-size 0.82rem
+    font-weight 700
+    color var(--festColor, $accentColor)
+    font-variant-numeric tabular-nums
+    i
+      font-style normal
+      font-size 0.68rem
+      font-weight 500
+      color var(--text3)
+      margin-left 1px
+  &.today
+    background var(--warmChipBg)
+    .lb, .n
+      color var(--festColor, $activeColor)
+
+// ===== 最近更新 =====
+.lastup
+  padding 0.7rem 0.95rem 0
+  a
+    display block
+    color var(--textColor)
+  .lu-pill
+    display inline-flex
+    align-items center
+    gap 0.35rem
+    font-size 0.72rem
+    font-weight 600
+    color var(--festColor, $accentColor)
+    background var(--chipBg)
+    padding 0.1rem 0.6rem
+    border-radius 999px
+    margin-bottom 0.45rem
+  .lu-title
+    font-size 0.9rem
+    font-weight 650
+    line-height 1.5
+    margin-bottom 0.45rem
+    display -webkit-box
+    -webkit-line-clamp 2
+    -webkit-box-orient vertical
+    overflow hidden
+    transition color 0.2s
+  a:hover .lu-title
+    color var(--festColor, $accentColor)
+  .lu-meta
+    display flex
+    align-items center
+    gap 0.5rem
+    font-size 0.75rem
+    color var(--text3)
+    .ago
+      color var(--festColor, $accentColor)
+      font-weight 600
+
+// ===== 友情链接 =====
+.links-grid
+  display grid
+  grid-template-columns 1fr 1fr
+  gap 0.5rem
+  padding 0.7rem 0.85rem 0
+.link-item
+  display flex
+  align-items center
+  gap 0.45rem
+  padding 0.4rem 0.5rem
+  border 1px solid var(--borderColor)
+  border-radius 12px
+  min-width 0
+  transition all 0.22s
+  &:hover
+    border-color var(--festColor, $accentColor)
+    transform translateY(-2px)
+    box-shadow 0 1px 2px 0 rgba(0, 0, 0, 0.05)
+  .av
+    width 1.6rem
+    height 1.6rem
+    border-radius 50%
+    flex-shrink 0
+    display grid
+    place-items center
+    color #fff
+    font-size 0.72rem
+    font-weight 700
+    background linear-gradient(135deg, $accentColor, #0B7E9E)
+  &:nth-child(6n+2) .av
+    background linear-gradient(135deg, #FF8A50, #FF5722)
+  &:nth-child(6n+3) .av
+    background linear-gradient(135deg, #34C759, #1E9E42)
+  &:nth-child(6n+4) .av
+    background linear-gradient(135deg, #7C6BF0, #5A46E0)
+  &:nth-child(6n+5) .av
+    background linear-gradient(135deg, #F5C344, #E0A800)
+  &:nth-child(6n+6) .av
+    background linear-gradient(135deg, #EC5975, #D33A5C)
+  .meta
+    min-width 0
+    .n
+      display block
+      font-size 0.78rem
+      font-weight 600
+      line-height 1.3
+      color var(--textColor)
+    .d
+      display block
+      font-size 0.68rem
+      line-height 1.3
+      color var(--text3)
+      overflow hidden
+      text-overflow ellipsis
+      white-space nowrap
+
+// ===== 今日诗词 =====
+.quote-card
+  .quote
+    padding 0.8rem 0.5rem 0
+    text-align center
+    .q
+      font-size 0.8rem
+      line-height 1.8
+      color var(--textColor)
+      min-height 2.9rem
+      letter-spacing -0.01em
+      white-space pre-line
+      word-break break-word
+      display flex
+      align-items center
+      justify-content center
+      text-align center
+      img
+        max-width 94%
+      &.fade
+        animation qFade 0.45s ease
+    .src
+      font-size 0.68rem
+      color var(--text3)
+      margin-top 0.4rem
+      min-height 1rem
+      padding 0 0.2rem
+      overflow hidden
+      text-overflow ellipsis
+      white-space nowrap
+    .q-btn
+      margin-top 0.5rem
+      border 1px solid var(--borderColor)
+      background var(--chipBg)
+      color var(--festColor, $accentColor)
+      font-size 0.72rem
+      font-weight 600
+      padding 0.18rem 0.8rem
+      border-radius 999px
+      cursor pointer
+      transition all 0.2s
+      &:hover
+        border-color var(--festColor, $accentColor)
+        transform translateY(-1px)
+      &[disabled]
+        opacity 0.55
+        cursor not-allowed
+        transform none
+
+@keyframes qFade
+  0%
+    opacity 0
+    transform translateY(4px)
+  100%
+    opacity 1
+    transform translateY(0)
+
+// ===== 960 以下：两栏堆叠 =====
+@media (max-width 960px)
+  .widget-strip
+    grid-template-columns 1fr 1fr
+
+// ===== ≤640：挂件带横滑（与快捷入口一致） =====
+@media (max-width 640px)
+  .announce-bar
+    padding 0.55rem 0.75rem
+    font-size 0.78rem
+    border-radius 12px
+    backdrop-filter saturate(160%) blur(10px)
+    -webkit-backdrop-filter saturate(160%) blur(10px)
+    .txt
+      display -webkit-box
+      -webkit-line-clamp 2
+      -webkit-box-orient vertical
+      overflow hidden
+  .widget-strip
+    display flex
+    overflow-x auto
+    scroll-snap-type x mandatory
+    -webkit-overflow-scrolling touch
+    scrollbar-width none
+    gap 0.75rem
+    &::-webkit-scrollbar
+      display none
+    .widget-card
+      flex 0 0 min(82%, 300px)
+      scroll-snap-align start
+  .quote-card
+    .quote
+      padding 0.75rem 0.5rem 0
+      .q
+        font-size 0.8rem
+        min-height 2.7rem
+      .src
+        display none
