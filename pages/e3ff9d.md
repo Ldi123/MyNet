@@ -1,0 +1,110 @@
+# 前端
+
+> 来源: https://ldi123.tk/MyNet/pages/e3ff9d/
+> 日期: 2021-12-25 15:46:07
+
+## 前端
+
+##### white-space 属性表
+
+| white-space 属性 | 源码空格 | 源码换行 | 换行 | 容器边界换行 |
+| --------------- | -------- | -------- | -------- | ------------ |
+| normal          | 合并     | 忽略     | 换行     | 换行         |
+| nowrap          | 合并     | 忽略     | 换行     | 不换行       |
+| pre             | 保留     | 换行     | 换行     | 不换行       |
+| pre-wrap        | 保留     | 换行     | 换行     | 换行         |
+| pre-line        | 合并     | 换行     | 换行     | 换行         |
+
+##### display 属性表
+
+| 值                 | 描述                                                         |
+| :----------------- | :----------------------------------------------------------- |
+| none               | 此元素不会被显示。                                           |
+| block              | 此元素将显示为块级元素，此元素前后会带有换行符。             |
+| inline             | 默认。此元素会被显示为内联元素，元素前后没有换行符。         |
+| inline-block       | 行内块元素。（CSS2.1 新增的值）                              |
+| list-item          | 此元素会作为列表显示。                                       |
+| run-in             | 此元素会根据上下文作为块级元素或内联元素显示。               |
+| compact            | CSS 中有值 compact，不过由于缺乏广泛支持，已经从 CSS2.1 中删除。 |
+| marker             | CSS 中有值 marker，不过由于缺乏广泛支持，已经从 CSS2.1 中删除。 |
+| table              | 此元素会作为块级表格来显示，表格前后带有换行符。             |
+| inline-table       | 此元素会作为内联表格来显示，表格前后没有换行符。             |
+| table-row-group    | 此元素会作为一个或多个行的分组来显示。                       |
+| table-header-group | 此元素会作为一个或多个行的分组来显示。                       |
+| table-footer-group | 此元素会作为一个或多个行的分组来显示。                       |
+| table-row          | 此元素会作为一个表格行显示。                                 |
+| table-column-group | 此元素会作为一个或多个列的分组来显示。                       |
+| table-column       | 此元素会作为一个单元格列显示                                 |
+| table-cell         | 此元素会作为一个表格单元格显示                               |
+| table-caption      | 此元素会作为一个表格标题显示                                 |
+| inherit            | 规定应该从父元素继承 display 属性的值。                      |
+
+##### js 中数字 0 与空字符串的问题
+
+在开发前端的时候，因为有很多值数据，但这些值从后台传过来的时候，有很多可能性，如：null, undefined, 空字符, "null", "undefined"，排除这些，其他应该就差不多是正常的了、出现这些数据的时候，前端页面统一显示''（空字符）。
+
+开始的时候我写的是 value!='', 后来发现，当 value 等于 0 的时候也会被判断为''，也就是说不走这个判断下面的语句
+
+```javascript
+if(i!=''){
+    //操作语句;
+}
+```
+
+换下逻辑发现，0=='' 为true
+
+原因其实也很简单：
+
+js中有默认的隐试转换。
+
+以下是数字和字符串隐试转换规则：
+
+1. 任何非零的数为true，0为false。
+2. 字符串来说任何非空字符串为 true，空字符串为false 
+
+所以 0转换成布尔为false ,“”转化成布尔为false 所以结果为true，想非自动隐试转换判断可以使用=== 或者 !==替代 ==和!== 例如：zdconsole.log(""===0) //false
+
+当数据有时候就是0，就是要显示0，解决办法是：value===""，这个是时候就等于false了
+
+(摘自：[js中数字0与空字符串的问题 - 余情呀 - 博客园 (cnblogs.com)](https://www.cnblogs.com/yuqingya/p/12915834.html))
+
+##### [CSS背景（background）笔记](https://blog.csdn.net/weixin_44908855/article/details/106887629)
+
+##### [vue less CSS滚动条样式修改美化变细](https://javaforall.cn/179565.html)
+
+#### 自定义滚动条
+
+```
+::-webkit-scrollbar {
+  /*滚动条整体样式*/
+  width: 4px; /*高宽分别对应横竖滚动条的尺寸*/
+}
+::-webkit-scrollbar-thumb {
+  /*滚动条里面小方块*/
+  // border-radius: 10px;
+  background-color: rgba(230, 27, 23, 1);
+  height: 80px;
+}
+::-webkit-scrollbar-track {
+  /* 滚动条轨道 */
+  background-color: rgba(255, 255, 255, 1);
+}
+```
+
+存在的问题
+
+- 自定义滚动条轨道背景颜色后，即使内容还没填满容器（还不需要滑动）滚动条轨道也不会自动隐藏（一直存在）
+
+![image-20231010211041344](C:\Users\lvdi\AppData\Roaming\Typora\typora-user-images\image-20231010211041344.png)
+
+原因及解决办法
+
+- 设置了属性overflow-y: scroll，只需要改为 `overflow-y: auto`  就能自动隐藏了，如下：
+
+```
+ .list-box{
+   /* 略 */
+   /* overflow-y: scroll */
+   overflow-y: auto;
+ }
+```

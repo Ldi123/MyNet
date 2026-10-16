@@ -1,0 +1,5649 @@
+# IamDi 知识库
+
+> 简洁、易用的博客系统。个人技术笔记与知识库，涵盖 Java、前端、运维、学习与生活记录。
+> 本文件为全站文章合并文本，供 LLM 一次性读取。
+
+
+---
+
+# 一个普通话学习站的完整复盘
+
+> 来源: https://ldi123.tk/MyNet/pages/d36d22/
+> 日期: 2026-09-06 17:43:47
+
+# 从 0 到 1：一个普通话学习站的完整复盘
+
+> 这是一个"跑通了，但已经死了"的项目。
+> 它的技术全部可用、部署全部成功，唯一的问题是——没人再需要它了。
+> 正因如此，它比那些只写成功经验的复盘更有记录价值。
+
+---
+
+## 写在最前
+
+2026 年 8 月底，我用两个晚上做了一个普通话二级考试辅助学习站：Flask 后端 + 原生前端 + Docker Compose 部署，包含听音选拼音、三关闯关、错题本、数据看板、录音 A/B 对比。它真的上线了，也真的被用过。
+
+这不是一篇纯手写的项目——全程是和 AI 结对完成的。从目录结构、题库数据、Flask 接口到 nginx 配置，绝大部分代码由 AI 生成，我负责提需求、做判断、验证结果，以及踩坑之后的归因。
+
+所以这不是一篇单纯的踩坑记录。我会尽量说清楚：**AI 在哪里真的提了效，在哪里反而成了风险源。**
+
+然后需求消失了。考试结束，没有人再打开它。
+
+若干天后我回来做处置评估，逐行读了代码，结论是：**这个项目没有留下任何值得带走的代码**。四个看起来"可复用"的模块，拆开看要么是直接调现成包再套一层胶水，要么是浏览器标准 API 的常规封装，要么干脆是已被判定有缺陷的实现。
+
+它真正留下的只有三样东西：一条被验证过的选型结论、一条产品教训、以及这篇文章。
+
+下面是我认为值得记下来的部分。
+
+---
+
+## 一、项目与时间线
+
+| 时间 | 进展 |
+|------|------|
+| D1 晚 | 从零搭建：Flask + pypinyin 后端，原生前端三模块（拼音卡片 / 计时器 / 录音波形） |
+| D1 晚 | 需求迭代，推翻重做为"闯关刷题"：听音选拼音 · 三关 · 错题本 · 录音对比 |
+| D1 晚 | Docker Compose 双容器部署上线，配置 HTTPS |
+| D2 上午 | 修两个线上问题：随机选词按钮遮挡卡片、标准音没声音（改用后端 TTS） |
+
+**从空目录到线上可用，用了两个晚上。** 支撑这个速度的一是选型、二是全程有 AI 结对，后面的章节会分别展开。
+
+技术栈：
+
+```
+前端  原生 HTML/CSS/JS，无框架、无构建、无 CDN
+后端  Flask + pypinyin + edge-tts，gunicorn 单 worker
+部署  nginx:alpine（80/443）+ python:3.9-slim（5000 仅内网）
+      前端目录 volume 挂载，改代码刷新即生效
+```
+
+---
+
+## 二、架构选型：为什么刻意选择"无框架"
+
+这不是偷懒，是算过账的。
+
+对一个生命周期可能只有几周、功能边界清晰、单人开发的小项目，引入前端框架意味着：构建链路、依赖安装、热更新配置、产物体积、以及"改一行要等几秒"的心智负担。而原生三件套的代价只是多写一点 DOM 操作。
+
+**但真正让天平倾斜的，是这次有 AI 结对。**
+
+"原生 JS 太啰嗦"这个反对理由，本质上是**手写成本**的问题。而当代码主要由 AI 生成时，这个成本几乎归零——多写几十行 DOM 操作，我并不需要多付出任何时间。于是选型公式变了：
+
+| | 判断式 | 结论 |
+|---|---|---|
+| 无 AI 结对 | 无框架的收益 **<** 手写样板的成本 | 上框架 |
+| 有 AI 结对 | 无框架的收益 **>** 趋近于零的生成成本 | 不上框架 |
+
+**AI 没有让框架变得更好用，它让"不用框架"这个选项变得可行。** 这是这次我对 AI 提效最具体的一次体感——不是"写代码变快了多少"，而是**它改变了技术选型的成本结构，让某个原本不划算的选项变成了最优解**。这类收益比单纯的代码生成速度要值钱得多，也更难被注意到。
+
+真正让这个决策落地的，还有部署侧的配合：
+
+```yaml
+volumes:
+  - ./frontend:/usr/share/nginx/html:ro
+```
+
+前端目录直接挂载进容器，改完 JS 刷新即可，不需要 build、不需要重建镜像。这让"改一行→看效果"的循环压到 1 秒以内。**开发反馈速度才是小项目最大的生产力，而框架在这件事上是减分的。**
+
+后端则相反——改后端要 `docker compose build backend && up -d`，一次几十秒。这个不对称后来影响了我的开发习惯：能放前端的逻辑尽量不写进后端。
+
+> **可迁移的结论**：单人、短周期、功能边界清晰的项目，"无构建"方案的整体效率高于任何框架。判断标准是——你的项目有没有"多人协作 + 长期演进 + 复杂状态"这三个需求中的任意一个。一个都没有，就别上框架。
+
+---
+
+## 三、七个坑
+
+### 坑 1｜把浏览器 API 当基础设施，是这次最大的判断失误
+
+**现象**：点"播放标准音"毫无反应。
+
+**根因**：标准音最初完全依赖浏览器的 `speechSynthesis`。这个 API 在服务器部署环境下极不可靠——
+
+1. 无头/服务器环境可能根本没有中文语音包，`getVoices()` 返回空数组；
+2. Chrome 对它有限制严格的自动播放策略，还有个著名的"首次调用 15 秒无声"bug；
+3. 非 HTTPS、非 localhost 时部分能力被直接限制。
+
+**解决**：后端用 edge-tts 合成 mp3，前端改成播音频文件，浏览器 API 降级为兜底。
+
+```python
+# 同步封装异步库，配合线程锁避免阻塞 Flask 主线程
+def _tts_sync(text, voice):
+    import edge_tts
+    async def _gen():
+        communicate = edge_tts.Communicate(text, voice)
+        buf = bytearray()
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                buf.extend(chunk["data"])
+        return bytes(buf)
+    return asyncio.run(_gen())
+```
+
+前端保留降级路径：
+
+```js
+audio.onerror = () => speakFallback(text);   // mp3 失败 → 回退 Web Speech API
+```
+
+**教训**：凡是涉及语音、录音、摄像头的浏览器能力，**默认假设它在目标环境不可用**。主方案要走后端出文件，前端 API 只能当 fallback，不能当依赖。
+
+顺带一条硬信息：**edge-tts 是微软的免费 TTS，不需要 API key，直接输出 mp3，连 ffmpeg 都不需要**，中文语音质量相当好。以后做任何需要中文朗读的东西，这条能省一小时探索。
+
+---
+
+### 坑 2｜依赖版本号是最容易"看起来确定"的幻觉
+
+**现象**：`docker compose build` 直接失败：`No matching distribution found for edge-tts==7.1.9`。
+
+**根因**：我凭印象写了版本号 `7.1.9`，**这个版本根本不存在**。可用版本从 `7.1.0` 直接跳到 `7.2.0`，而新版要求 Python ≥ 3.10，容器里是 3.9。
+
+**教训**：版本号是那种"写出来特别像真的、错起来毫无征兆"的信息。锁定依赖前必须验证两件事——版本号真实存在，且兼容运行环境的 Python 版本。报错日志里 `from versions: ...` 列出的就是可用版本，直接照抄。
+
+顺便交代一句：这个 `7.1.9` 就是 AI 给的。
+
+说这个不是为了吐槽——恰恰相反，它精准标出了 AI 辅助开发里**最需要人把关的那一类信息**：版本号、API 签名、配置项名称、端口号。这些"看起来极其确定、错起来毫无征兆"的事实性细节，是模型的幻觉高发区。
+
+我的分工后来固定成这样：**代码可以放手让 AI 生成，但凡是写进 `requirements.txt`、配置文件和部署脚本里的"事实"，一律以实际执行结果为准。** 生成阶段可以快，验证环节不能省。
+
+---
+
+### 坑 3｜精简镜像里什么都没有
+
+**现象**：`docker exec pth2-backend curl ...` 报 `executable file not found`。
+
+**根因**：`python:3.9-slim` 和 `nginx:alpine` 都是精简镜像，没有 curl，alpine 甚至没有 bash。
+
+**解决**：
+
+- 后端容器内测：用 `python3 -c "import urllib.request; ..."`
+- 宿主机验证：走 nginx 反代 `curl -sk https://localhost/api/...`
+- nginx 容器：用 busybox 自带的 `wget`
+
+**教训**：进任何精简镜像，先 `which curl bash` 探底，别默认什么都有。
+
+---
+
+### 坑 4｜HTTPS 一旦开了，本地验证习惯要整个换掉
+
+**现象**：`curl http://localhost/api/health` 返回 301，看不到 JSON。
+
+**根因**：nginx 配了 80 → 443 强制跳转，普通 http 请求全被重定向。又因为证书是自签的，不加 `-k` 会 SSL 验证失败。
+
+**解决**：所有本地验证统一改成 `curl -sk https://localhost/api/...`。
+
+**教训**：启用 HTTPS 的那一刻起，所有调试命令要一次性全部切换，否则会浪费大量时间在"为什么拿不到内容"上。
+
+---
+
+### 坑 5｜绝对定位：负 margin 往里叠，负 top 往外放
+
+**现象**：录音视图的"随机选词"按钮压在卡片文字上。
+
+**根因**：
+
+```css
+/* 错误：负 margin 把按钮往内容里拽 */
+position: absolute; right: 16px; margin-top: -44px;
+```
+
+**解决**：
+
+```css
+/* 正确：负 top 放到卡片边界之外 */
+position: absolute; top: -40px; right: 0;
+```
+
+**教训**：想让元素出现在容器"外侧"，用负值的 `top` / `bottom` 推出边界；用负 `margin` 只会把它叠进内容里。动手前先确认父容器是谁（这里需要 `.record-pick { position: relative }`）。
+
+---
+
+### 坑 6｜改了代码没生效？先看版本号
+
+静态资源加版本号参数：
+
+```html
+<script src="script.js?v=20260829d"></script>
+```
+
+改完代码忘记递增，用户看到的就是旧文件。这是最容易被误判为"代码写错了"的问题。
+
+---
+
+### 坑 7｜512MB 内存下的 gunicorn
+
+服务器是 4 核 4G，后端容器限 512MB。多 worker 会超，所以：
+
+```bash
+gunicorn --workers 1 --threads 4
+```
+
+Flask 同步请求 + 单 worker 多线程足够。edge-tts 是异步库，在视图函数里用线程锁 + `asyncio.run()` 同步封装，单 worker 下多线程各自 `asyncio.run` 是安全的。
+
+---
+
+## 四、真正的教训：技术跑通 ≠ 教学有效
+
+前面七个坑都是工程问题，修完就完了。但复盘时我发现了一个**更根本的、当时完全没意识到的问题**——它不在工程层面，在产品层面。
+
+干扰项是这样生成的：
+
+```python
+def generate_distractors(correct_pinyin, pool, count=3):
+    candidates = []
+    for item in pool:
+        if item["pinyin"] == correct_pinyin:
+            continue
+        cand = item["pinyin"]
+        if cand not in candidates:
+            candidates.append(cand)
+    random.shuffle(candidates)
+    return candidates[:count]
+```
+
+逻辑没问题，测试能过，界面显示正常。但实际效果是什么？
+
+正确答案是 `nài`（奈），干扰项可能是 `yuè`（粤）、`quàn`（券）、`sài`（赛）。
+
+**这种选项一眼就能排除，训练价值为零。**
+
+普通话学习真正有效的干扰项是**最小对立对**：`nài / lài`（n/l 不分）、`zī / zhī`（平翘舌）、`mín / míng`（前后鼻音）。只有让学习者在最容易混淆的两个音之间做选择，训练才成立。
+
+问题出在哪？**出在数据结构，不出在算法。**
+
+题库里每条记录长这样：
+
+```python
+{"id": "l1_001", "word": "奈", "pinyin": "nài", "type": "shengmu", "note": "n 与 l 区分"}
+```
+
+`note` 里写着"n 与 l 区分"，说明**我在录入数据时是知道混淆关系的**——但这个知识只写进了给人看的注释，没有变成机器可用的字段。正确做法是每题显式带一个 `confusable` 字段：
+
+```python
+{"word": "奈", "pinyin": "nài", "confusable": ["lài", "nà", "nǎi"]}
+```
+
+干扰项靠数据定义，不靠算法随机。随机算法再精巧，也造不出 pedagogically 有效的选项。
+
+> **可迁移的结论**：当一个功能"技术上跑通了但效果不好"时，先别优化算法，去检查数据结构——**很可能是你在数据录入时丢掉了关键信息**。算法只能利用已有的信息，无法凭空补上。
+
+这里还有一层，是 AI 时代尤其要警惕的：**这段干扰项代码是 AI 写的，它写得完全正确，测试全绿，但它不知道这题的教学目的是什么。**
+
+AI 能高效地产出"技术上跑通"的实现，而"这个实现到底有没有达成它存在的目的"——这是需求方的责任，无法外包，也不会有人替你报错。**功能有效性是 AI 辅助开发中最容易失守的一环，因为它失败得悄无声息。**
+
+同一类问题还有一处：掌握度算法。
+
+```js
+return Math.min(1, p.correct / total);   // 分子累计答对次数，分母关卡题目总数
+```
+
+分子是累计答对次数，分母是关卡题目总数。反复刷同一批简单题就能把掌握度顶满并解锁下一关——**学习机制形同虚设，可被轻易刷分**。
+
+（对比一下：我另一个项目用的是 FSRS 间隔重复算法，在这个维度上明显更靠谱。讽刺的是，我当初还打算把这个"答题引擎"抽出来复用——一个已知有缺陷的实现，抽它干什么。）
+
+---
+
+## 五、复盘：做对了什么，做错了什么
+
+**做对的：**
+
+1. **选型克制**。无框架、无构建、无 CDN，把复杂度压到最低，这是能在两个晚上内交付的直接原因。
+2. **部署方式选对了**。前端 volume 热更新让迭代循环压到 1 秒；后端不映射宿主机端口，只走 nginx 反代，既安全又省了跨域配置。
+3. **关键能力做了降级兜底**。TTS 主方案失败回退浏览器 API，这个设计让"标准音没声音"没有变成致命故障。
+4. **边做边记坑**。PROJECT_NOTES.md 是这次唯一真正沉淀下来的东西——如果不写，一周后这些细节全部蒸发。
+5. **把 AI 放在了正确的位置**。让它产出大量确定性代码（题库数据、CRUD 接口、CSS 布局、nginx 配置），我集中精力做需求判断、线上归因和有效性验证。前提是把好"事实性信息"这一关（坑 2）。
+
+**做错的：**
+
+1. **没建 git 仓库**。一个已经上线的项目，居然没有任何版本历史。这是本次最高优先级的风险，也是最不应该犯的错。
+2. **把浏览器 API 当基础设施**（坑 1）——对运行环境做最坏假设，应该成为默认习惯。
+3. **只验证"功能可用"，没验证"效果有效"**。干扰项那个问题，测试全绿、界面正常，但产品是失败的。功能测试覆盖不了有效性。
+4. **数据与代码耦合**。153 条题库硬编码在 `app.py` 里，换主题就得改源码。
+5. **没有及时止损的判断框架**。项目该不该继续，我是在一个月后才回头评估的——如果一开始就想清楚"这是为一场考试做的临时工具"，很多设计会更果断。
+
+---
+
+## 六、如果重来一次
+
+1. **第一天就 `git init`**。没有例外。
+2. **题库外置**。数据放 JSON/SQLite，代码只负责逻辑——这样换主题时不用碰代码，也才谈得上"复用"。
+3. **先设计数据结构再写算法**。干扰项、掌握度这两个问题的根源都在这里。数据结构对了，算法可以很笨。
+4. **给项目预设一个退出条件**。"为 X 考试做的工具，考完即归档"——写清楚，到时候就不用纠结。
+5. **录音功能重新评估必要性**。受"不使用语音识别模型"的约束，录音只能做人耳 A/B 对比，没有客观反馈，实际使用率很低。**约束导致功能价值存疑时，应该早点砍掉，而不是做出来凑数。**
+
+---
+
+## 七、一页速查
+
+| 事项 | 结论 |
+|------|------|
+| 小项目选型 | 单人、短周期、无复杂状态 → 无框架无构建，整体效率更高 |
+| 语音/录音/摄像头 | 后端出文件为主，浏览器 API 只做 fallback |
+| 免费中文 TTS | edge-tts：无需 key、输出 mp3、不需要 ffmpeg |
+| 锁依赖版本 | 先验证版本号存在 + 兼容运行环境的 Python 版本 |
+| 精简镜像 | slim/alpine 没 curl 没 bash，先 `which` 探底 |
+| 启用 HTTPS 后 | 本地验证一律 `curl -sk https://...` |
+| 前端改代码 | volume 挂载刷新即生效，但要递增 `?v=` 版本号 |
+| 绝对定位放外侧 | 用负 `top`/`bottom`，不要用负 margin |
+| 小内存部署 | gunicorn 单 worker 多线程 + `mem_limit` |
+| 效果不好时 | 先查数据结构，别急着优化算法 |
+| 第一天 | `git init` |
+
+---
+
+## 最后
+
+这个项目的结局是归档，我不觉得可惜。
+
+它在很短的时间里完整地走了一遍"需求 → 设计 → 实现 → 部署 → 线上修复 → 复盘"的全过程，代价极低。真正昂贵的做法是：因为"已经写了这么多代码"而舍不得停，或者因为"想保留资产"而去做没有目标的通用化重构。
+
+最后说说 AI。它在这个项目里确实大幅提效了，但提效的方式和通常的说法不太一样——不是"少写了多少行代码"：
+
+- 它**改变了技术选型的成本结构**，把"不用框架"从将就变成了最优解；
+- 它**把样板代码的成本压到接近零**，让我能把注意力全部放在需求判断和线上归因上；
+- 但它**不会替你判断功能是否有效**，也不会为那个幻觉出来的版本号负责。
+
+前两条是增量，第三条是代价。而第三条恰恰是最容易被忽略的，因为它不像 build 失败那样会报错。
+
+**代码是最不值钱的那部分。判断力才是——而在 AI 时代，这句话比以往任何时候都更成立。**
+
+
+---
+
+# 传统 Spring MVC 项目接口改造 CXF WebService 踩坑复盘
+
+> 来源: https://ldi123.tk/MyNet/pages/d30820/
+> 日期: 2026-04-28 14:50:17
+
+# 传统 Spring MVC 项目把Controller层定义的POST接口改成 CXF WebService 踩坑复盘
+
+## 一、项目背景
+
+- 项目类型：**传统 Spring MVC / SSM 项目（非 Spring Boot）**
+- 需求：对外提供 WebService 接口，接收 XML 格式入参并返回 XML 响应
+- 核心框架：Spring + Spring MVC + MyBatis + CXF
+- 前提条件：已经有完整的以 `POST` 方式调用的接口，需要改成webService方式调用，主要的改造点是添加@WebService注解和@Component注解（也可以是@Service注解，是为了还能继续使用@Autowired），移除@Controller等Spring MVC注解。
+
+------
+
+## 二、整体踩坑历程与解决路线
+
+### 1. 依赖错误：误用 Spring Boot Starter
+
+**问题表现**
+
+- 引入 `cxf-spring-boot-starter-jaxws`
+- 找不到 Spring Boot 相关类、Bean 无法注入、启动报错
+
+**尝试方法**
+
+- 更换 CXF 4.2.0 → 不兼容 Spring MVC
+- 更换 CXF 3.5.8 → 仍因 Starter 不匹配报错
+
+**正确方案**
+
+彻底删除 Starter，改用**纯 Spring MVC 原生依赖**：
+
+```xml
+<dependency>
+    <groupId>org.apache.cxf</groupId>
+    <artifactId>cxf-rt-frontend-jaxws</artifactId>
+    <version>3.5.8</version>
+</dependency>
+<dependency>
+    <groupId>org.apache.cxf</groupId>
+    <artifactId>cxf-rt-transports-http</artifactId>
+    <version>3.5.8</version>
+</dependency>
+```
+
+------
+
+### 2. 启动类写法错误：使用 Spring Boot 专用 API
+
+**问题表现**
+
+- 使用 `implements CommandLineRunner`
+- 注入 `@Autowired private Bus bus`
+- 报错：`NoSuchBeanDefinitionException: No bean named 'cxf' available`
+
+**尝试方法**
+
+- 手动构造 Bus → 失败
+- 保留 Spring Boot 风格配置 → 持续报错
+
+**正确方案**
+
+删除 CommandLineRunner，使用 `@PostConstruct` 在 Spring 容器启动后发布服务：
+
+```java
+@Configuration
+public class WebServiceConfig {
+    @Autowired
+    private MyTestController myTestController;
+
+    @PostConstruct
+    public void publishWebService() {
+        JaxWsServerFactoryBean factory = new JaxWsServerFactoryBean();
+        factory.setServiceBean(myTestController);
+        factory.setAddress("/MyTestService");
+        factory.create();
+    }
+}
+```
+
+------
+
+### 3. 缺少 CXFServlet 导致接口 404
+
+**问题表现**
+
+- 项目启动无报错
+- 访问接口直接 404
+
+**尝试方法**
+
+- 直接访问 `/MyTestService`
+- 去掉项目名访问 → 依旧 404
+
+**正确方案**
+
+`web.xml` 追加独立 Servlet 配置（不影响原有 DispatcherServlet）：
+
+```xml
+<servlet>
+    <servlet-name>cxf</servlet-name>
+    <servlet-class>org.apache.cxf.transport.servlet.CXFServlet</servlet-class>
+</servlet>
+<servlet-mapping>
+    <servlet-name>cxf</servlet-name>
+    <url-pattern>/ws/*</url-pattern>
+</servlet-mapping>
+```
+
+**接口访问地址**
+
+```
+http://ip:port/项目名/ws/MyTestService?wsdl
+```
+
+------
+
+### 4. 缺少 cxf.xml 导入导致 Bean 缺失
+
+**问题表现**
+
+```
+No bean named 'cxf' available
+```
+
+**尝试方法**
+
+- 手动定义 cxf Bean → 失败
+- 调整配置文件加载顺序 → 无效
+
+**正确方案**
+
+在 Spring 根配置文件（如 `spring-service-bean.xml`）中导入：
+
+```xml
+<import resource="classpath:META-INF/cxf/cxf.xml" />
+```
+
+------
+
+### 5. XML 解析报错：不允许有匹配 "[xX][mM][lL]" 的处理指令目标
+
+**问题表现**
+
+- 入参为 SOAP 协议
+- CDATA 内部又嵌套了 `<?xml version="1.0" encoding="gbk"?>`
+- XML 声明前存在换行、空格、不可见字符
+
+**尝试方法**
+
+- 调整编码 UTF-8 / GBK → 无效
+- 只 trim () → 仍偶现报错
+
+**最终稳定方案**
+
+```java
+// 1. 删除所有 XML 声明
+xmlContent = xmlContent.replaceAll("<\\?xml.*?\\?>", "");
+// 2. 清除首尾空白、换行、不可见字符
+xmlContent = xmlContent.trim();
+```
+
+------
+
+## 三、关键经验教训
+
+### 1. 分清项目类型：Spring Boot vs 传统 Spring MVC
+
+- Spring Boot：使用 `cxf-spring-boot-starter-jaxws`
+- 传统 SSM：必须使用原生 `cxf-rt-*` 依赖
+- 禁止混用 Spring Boot 相关 API（ServletRegistrationBean、CommandLineRunner 等）
+
+### 2. CXF 在传统项目中必须配置两点
+
+- `web.xml` 中注册独立 CXFServlet
+- Spring 配置中导入 `cxf.xml`
+
+### 3. WebService 接口地址规则
+
+- 格式：`/项目名/ servletPath /服务名?wsdl`
+- 不可直接访问服务名，必须走 Servlet 前缀
+
+### 4. XML 嵌套是高频报错点
+
+- SOAP  envelope 本身已是 XML
+- 内部业务 XML 必须放在 CDATA 或做转义
+- 解析前务必删除内部 XML 声明、清理空白字符
+
+### 5. XML 解析器极度严格
+
+- XML 声明必须在**第一位**
+- 前面不能有任何字符（换行、空格、BOM 都不行）
+- 不允许出现多个 XML 声明
+
+------
+
+## 四、正确可直接复用的最小集成方案
+
+1. 引入正确 CXF 依赖
+2. web.xml 配置 CXFServlet
+3. Spring 配置导入 cxf.xml
+4. 使用 @PostConstruct 发布服务
+5. 解析入参时清理 XML 声明与空白字符
+6. 返回值做 XML 转义，避免嵌套格式错误
+
+------
+
+## 五、总结
+
+本次踩坑核心原因是**混用 Spring Boot 与传统 Spring MVC 用法**，导致依赖、配置、启动方式全线不匹配。
+
+只要严格按照**传统 SSM 项目规范**集成 CXF，整体流程非常稳定，接口可正常发布、调用、解析、响应，且对原有业务代码**零侵入、零影响**。
+
+
+---
+
+# OpenClaw 安装失败经验复盘文档
+
+> 来源: https://ldi123.tk/MyNet/pages/17c085/
+> 日期: 2026-03-11 21:40:57
+
+# 📉 OpenClaw 安装失败经验复盘文档
+
+> **摘要**：本文档记录了在老旧 Linux 环境（CentOS 7 / Node.js v16）下尝试安装最新版本 `openclaw` 的全过程。尽管成功绕过了 Git SSH 协议限制和包依赖问题，但最终因操作系统底层库（glibc/libstdc++）版本过低，无法运行所需的 Node.js v22 环境而导致安装失败。
+>
+> **结论**：在过时的操作系统上强行运行依赖最新运行时环境的软件是不可行的，**Docker 容器化部署**是此类场景的唯一解决方案。
+
+------
+
+## 1. 环境背景
+
+表格
+
+| 组件         | 版本/状态           | 备注                    |
+| :----------- | :------------------ | :---------------------- |
+| **操作系统** | CentOS 7            | 内核较老，glibc 版本低  |
+| **Node.js**  | v16.20.2            | 系统原生或旧版 nvm 版本 |
+| **NPM**      | 8.19.4              | 配套 Node 16            |
+| **目标软件** | `openclaw@latest`   | 版本 `2026.3.7`         |
+| **软件要求** | Node.js `>=22.12.0` | **核心冲突点**          |
+
+------
+
+## 2. 遇到的问题与解决尝试
+
+### 阶段一：Git SSH 协议握手失败
+
+**❌ 错误现象**：
+
+```shell
+npm ERR! command git --no-replace-objects ls-remote ssh://git@github.com/whiskeysockets/libsignal-node.git
+npm ERR! Permission denied (publickey).
+npm ERR! fatal: Could not read from remote repository.
+```
+
+**原因分析**：
+依赖包 `libsignal-node` 在 `package.json` 中硬编码了 `ssh://` 协议，而服务器未配置 SSH Key，且 `npm` 的 `git config` 重定向规则未能生效。
+
+**🛠️ 尝试方案**：
+
+1. 配置 `～/.gitconfig` 进行 `insteadOf` 替换（**失败**：npm 内部 git 进程无视配置）。
+2. ✅ 最终变通方案：
+   - 下载 `openclaw` 的 `.tgz` 源码包。
+   - 解压后使用 `sed` 暴力替换 `package.json` 中所有的 `git+ssh://` 和 `git@github.com:` 为 `https://github.com/`。
+   - 从本地修改后的目录执行 `npm install -g .`。
+   - **结果**：包成功安装，但出现引擎版本警告。
+
+### 阶段二：Node.js 引擎版本不匹配
+
+**⚠️ 警告现象**：
+
+```shell
+npm WARN EBADENGINE Unsupported engine {
+npm WARN EBADENGINE   package: 'openclaw@2026.3.7',
+npm WARN EBADENGINE   required: { node: '>=22.12.0' },
+npm WARN EBADENGINE   current: { node: 'v16.20.2' }
+```
+
+**原因分析**：
+`openclaw` 强制要求 Node.js v22+，当前环境 v16 无法满足。
+
+**🛠️ 尝试方案**：
+
+1. 使用 `nvm` 安装并切换至 Node.js v22.22.1。
+
+2. ❌ 致命错误：
+
+   ```shell
+      node: /lib64/libstdc++.so.6: version `GLIBCXX_3.4.21' not found
+      node: /lib64/libc.so.6: version `GLIBC_2.27' not found
+   ```
+   
+
+根本原因：宿主操作系统的 C 标准库（glibc）和 C++ 标准库（libstdc++）版本太旧（CentOS 7 默认 glibc 2.17），而 Node.js v22 编译时依赖更新的库版本（glibc 2.27+）。
+
+二进制文件无法在旧内核库上运行。
+
+### 阶段三：降级版本兼容性测试
+
+**🛠️ 尝试方案**：
+
+1. 查询 `openclaw` 历史版本，发现所有版本均发布于 2026 年，且架构极新。
+2. 尝试回退至最早版本 `openclaw@2026.1.29`。
+3. **预判结果**：即使安装成功，大概率仍要求高版本 Node.js，且功能可能残缺。此路不通。
+
+------
+
+## 3. 最终结论与推荐方案
+
+### 💀 失败总结
+
+在 **CentOS 7** 或类似老旧 Linux 发行版上，**无法直接运行** 依赖 Node.js v22+ 的现代应用。
+
+- 升级 Node.js 二进制文件无效，因为底层系统库（glibc）是瓶颈。
+- 手动编译 glibc 风险极高，可能导致系统崩溃。
+- 软件本身无兼容旧版 Node 的历史版本。
+
+### ✅ 唯一可行方案：Docker 容器化
+
+既然宿主机环境太老，我们直接在容器里跑。这是最干净、最安全的方法，不需要升级操作系统。
+
+**前提**：你需要能安装 Docker。如果你的机器完全无法安装 Docker（比如没有 root 权限或内核太老），那这个软件在你的机器上**真的跑不起来**。
+
+#### 步骤 1: 安装并启动 Docker
+
+```shell
+# 安装 Docker
+yum install -y yum-utils
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+yum install -y docker-ce docker-ce-cli containerd.io
+
+# 启动 Docker
+systemctl start docker
+# 开机自启
+systemctl enable docker
+# 安装 Docker Compose 插件
+yum install docker-compose-plugin
+```
+
+#### 步骤2：执行安装脚本
+
+这里采用自定义方式，也可以直接使用官方一键安装脚本，更方便
+
+```shell
+#!/bin/bash
+#openclaw.sh - 基于官方文档手动流程
+# 使用方法: chmod +x build-openclaw.sh && ./build-openclaw.sh
+
+set -e  # 遇到错误立即退出
+
+# 颜色输出（可选，便于阅读）
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+echo -e "${GREEN}=== OpenClaw 官方手动流程自动化脚本 ===${NC}"
+
+# 0.设置默认环境变量
+# 如果用户没有设置，则使用默认值 ~/.openclaw
+export OPENCLAW_CONFIG_DIR="${OPENCLAW_CONFIG_DIR:-$HOME/.openclaw}"
+export OPENCLAW_WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-$HOME/.openclaw/workspace}"
+
+# 确保目录存在且权限正确 (避免后续 EACCES 错误)
+mkdir -p "$OPENCLAW_CONFIG_DIR"
+mkdir -p "$OPENCLAW_WORKSPACE_DIR"
+# OpenClaw 容器内通常使用 node 用户 (UID 1000)，需调整主机目录权限
+sudo chown -R 1000:1000 "$OPENCLAW_CONFIG_DIR"
+sudo chown -R 1000:1000 "$OPENCLAW_WORKSPACE_DIR"
+
+# 1. 检查必要命令
+# 检查 git 和 docker 是否安装
+for cmd in git docker; do
+    if ! command -v $cmd &> /dev/null; then
+        echo -e "${RED}错误: $cmd 未安装，请先安装。${NC}"
+        exit 1
+    fi
+done
+
+# 检查 docker compose 插件是否可用
+if ! docker compose version &> /dev/null; then
+    echo -e "${RED}错误: docker compose 插件不可用。请安装 Docker Compose 插件（参考：https://docs.docker.com/compose/install/）${NC}"
+    exit 1
+fi
+
+# 2. 定义仓库信息
+REPO_URL="https://github.com/openclaw/openClaw.git"
+PROJECT_DIR="openClaw"
+
+# 3. 克隆/更新代码
+if [ -d "$PROJECT_DIR" ]; then
+    echo -e "${YELLOW}项目目录已存在，执行 git pull 更新...${NC}"
+    cd "$PROJECT_DIR"
+    git pull
+else
+    echo -e "${GREEN}克隆 OpenClaw 仓库...${NC}"
+    git clone "$REPO_URL"
+    cd "$PROJECT_DIR"
+fi
+
+# ===== 官方文档关键配置区域 =====
+# 根据你的需求，取消注释并修改以下环境变量
+# 详细说明参见: https://docs.openclaw.ai/zh-CN/install/docker
+
+# 安装额外的系统包（空格分隔）
+# export OPENCLAW_DOCKER_APT_PACKAGES="ffmpeg git vim"
+
+# 挂载额外的主机目录（逗号分隔的Docker绑定挂载列表）
+# 格式: "/host/path:/container/path:ro" 或 ":rw"
+# export OPENCLAW_EXTRA_MOUNTS="$HOME/data:/home/node/data:rw,$HOME/projects:/home/node/projects:ro"
+
+# 持久化整个 /home/node 目录（使用Docker命名卷）
+# export OPENCLAW_HOME_VOLUME="openclaw_home"
+
+# ===== 执行官方手动流程 =====
+echo -e "${GREEN}1. 构建 Docker 镜像 (openclaw:local)${NC}"
+docker build -t openclaw:local -f Dockerfile .
+
+echo -e "${GREEN}2. 运行初始化向导 (需要交互式输入管理员和API Key)${NC}"
+echo -e "${YELLOW}请根据提示完成配置...${NC}"
+docker compose run --rm openclaw-cli onboard
+
+echo -e "${GREEN}3. 启动 Gateway 服务${NC}"
+docker compose up -d openclaw-gateway
+
+# 4. 如果存在额外挂载配置，重新启动以应用
+if [ -f "docker-compose.extra.yml" ]; then
+    echo -e "${YELLOW}检测到额外挂载配置 (docker-compose.extra.yml)，重新启动以应用...${NC}"
+    docker compose -f docker-compose.yml -f docker-compose.extra.yml down
+    docker compose -f docker-compose.yml -f docker-compose.extra.yml up -d openclaw-gateway
+fi
+
+# 5. 检查服务状态
+sleep 5
+if docker compose ps openclaw-gateway | grep -q "Up"; then
+    echo -e "${GREEN}✅ OpenClaw 已成功运行！${NC}"
+    echo -e "${GREEN}访问地址: http://localhost:18789${NC}"
+    echo -e "${YELLOW}首次登录可能需要令牌，运行以下命令获取:${NC}"
+    echo -e "  cd $PROJECT_DIR && docker compose run --rm openclaw-cli dashboard --no-open"
+    echo -e "${YELLOW}如果遇到权限错误 (EACCES)，请确保主机目录所有者是 UID 1000:${NC}"
+    echo -e "  sudo chown -R 1000:1000 ~/.openclaw"
+else
+    echo -e "${RED}❌ 服务启动失败，请检查日志: docker compose logs openclaw-gateway${NC}"
+    exit 1
+fi
+```
+
+#### 步骤3：完成安装
+
+首次运行会加载向导，按它的提示配置即可
+
+![image-20260309172609174](C:\Users\lvdi\AppData\Roaming\Typora\typora-user-images\image-20260309172609174.png)
+
+------
+
+## 4. 经验教训
+
+1. **依赖地狱的尽头是系统库**：当遇到 `GLIBC_xx not found` 错误时，不要试图升级应用软件，问题出在操作系统底层。
+2. **Git 协议硬编码坑**：现代 npm 包有时会硬编码 SSH 地址，准备 `sed` 替换 `package.json` 是内网或无 SSH 环境下的必备技能。
+3. **Docker 是终极兼容层**：对于开发工具链版本迭代极快（如 Node.js 半年一大改）的场景，宿主环境应尽量保持纯净，具体版本需求全部交给 Docker 处理。
+4. **版本查询的重要性**：在安装前使用 `npm view <pkg> versions` 检查历史版本要求，可避免无效的升级尝试。
+
+
+---
+
+# 动态规划通用解题技巧和步骤
+
+> 来源: https://ldi123.tk/MyNet/pages/5d53fc/
+> 日期: 2026-01-20 18:54:08
+
+# 🚀 动态规划通用解题技巧和步骤
+
+## 📋 标准解题五步法
+
+### 🎈 Step 1: 确定DP含义（最关键！）
+
+**核心思想：明确dp[i]或dp\[i][j]代表什么**
+
+#### 常见定义模式：
+
+```java
+// 模式1：以i结尾的最优解
+dp[i] = 以第i个元素结尾的最大/最小/数量
+
+// 模式2：前i个元素的最优解  
+dp[i] = 前i个元素的最大/最小/数量
+
+// 模式3：从起点到(i,j)的最优解
+dp[i][j] = 从(0,0)到(i,j)的最优解
+
+// 模式4：区间DP
+dp[i][j] = 区间[i,j]内的最优解
+
+// 模式5：状态DP
+dp[i][state] = 第i个位置在state状态下的最优解
+```
+
+### 🔄 Step 2: 推导状态转移方程
+
+**核心：当前状态如何从之前状态推导而来**
+
+#### 常见转移模式：
+
+```java
+// 选择型：选或不选
+dp[i] = max(dp[i-1], dp[i-1] + nums[i])
+
+// 路径型：从哪里来
+dp[i][j] = dp[i-1][j] + dp[i][j-1]
+
+// 决策型：多种选择取最优
+dp[i] = min(dp[i-1], dp[i-2], dp[i-3]) + cost[i]
+
+// 区间型：分割点枚举
+dp[i][j] = min(dp[i][k] + dp[k+1][j]) for k in [i,j-1]
+```
+
+### 🌱 Step 3: 确定初始状态
+
+**边界条件的正确设置**
+
+```java
+// 常见初始化模式
+dp[0] = 0;              // 空集/起点
+dp[0] = nums[0];        // 第一个元素
+Arrays.fill(dp, INF);  // 最小值问题
+Arrays.fill(dp, -1);   // 不可达状态
+dp[0][0] = 1;          // 路径问题起点
+```
+
+### 🔄 Step 4: 确定遍历顺序
+
+**保证计算当前状态时，依赖的状态已经计算完毕**
+
+```java
+// 一维：通常从前往后
+for (int i = 1; i < n; i++)
+
+// 二维：根据依赖关系
+for (int i = 0; i < m; i++) {
+    for (int j = 0; j < n; j++)  // 或倒序
+}
+
+// 区间DP：按区间长度递增
+for (int len = 2; len <= n; len++) {
+    for (int i = 0; i <= n - len; i++) {
+        int j = i + len - 1;
+    }
+}
+```
+
+### 🎯 Step 5: 返回结果
+
+**根据DP含义确定答案位置**
+
+```java
+return dp[n-1];        // 最后一个位置
+return dp[n];          // 处理n个元素后
+return dp[0][n-1];     // 区间[0,n-1]
+return Arrays.stream(dp).max().getAsInt(); // 所有状态最优
+```
+
+## 🏷️ 经典DP类型和模板
+
+### 📍 1. 线性DP
+
+#### 🔹 最大子数组和
+
+```java
+public int maxSubArray(int[] nums) {
+    // dp[i] = 以nums[i]结尾的最大子数组和
+    int dp = nums[0], result = nums[0];
+    for (int i = 1; i < nums.length; i++) {
+        dp = Math.max(nums[i], dp + nums[i]);
+        result = Math.max(result, dp);
+    }
+    return result;
+}
+```
+
+#### 🔹 最长递增子序列
+
+```java
+public int lengthOfLIS(int[] nums) {
+    // dp[i] = 以nums[i]结尾的最长递增子序列长度
+    int[] dp = new int[nums.length];
+    Arrays.fill(dp, 1);
+    int result = 1;
+    
+    for (int i = 1; i < nums.length; i++) {
+        for (int j = 0; j < i; j++) {
+            if (nums[j] < nums[i]) {
+                dp[i] = Math.max(dp[i], dp[j] + 1);
+            }
+        }
+        result = Math.max(result, dp[i]);
+    }
+    return result;
+}
+```
+
+### 📍 2. 背包DP
+
+#### 🔹 0-1背包模板
+
+```java
+public int knapsack01(int[] weights, int[] values, int W) {
+    // dp[i][w] = 前i个物品，容量w的最大价值
+    int[][] dp = new int[weights.length + 1][W + 1];
+    
+    for (int i = 1; i <= weights.length; i++) {
+        for (int w = 1; w <= W; w++) {
+            // 不选第i个物品
+            dp[i][w] = dp[i-1][w];
+            // 选第i个物品（如果放得下）
+            if (w >= weights[i-1]) {
+                dp[i][w] = Math.max(dp[i][w], 
+                    dp[i-1][w-weights[i-1]] + values[i-1]);
+            }
+        }
+    }
+    return dp[weights.length][W];
+}
+```
+
+#### 🔹 完全背包模板
+
+```java
+public int completeKnapsack(int[] weights, int[] values, int W) {
+    // dp[w] = 容量w的最大价值
+    int[] dp = new int[W + 1];
+    
+    for (int i = 0; i < weights.length; i++) {
+        for (int w = weights[i]; w <= W; w++) {
+            dp[w] = Math.max(dp[w], dp[w - weights[i]] + values[i]);
+        }
+    }
+    return dp[W];
+}
+```
+
+### 📍 3. 区间DP
+
+#### 🔹 区间DP模板
+
+```java
+public int intervalDP(int[] nums) {
+    int n = nums.length;
+    // dp[i][j] = 区间[i,j]的最优解
+    int[][] dp = new int[n][n];
+    
+    // 按区间长度递增
+    for (int len = 2; len <= n; len++) {
+        for (int i = 0; i <= n - len; i++) {
+            int j = i + len - 1;
+            dp[i][j] = Integer.MAX_VALUE;
+            
+            // 枚举分割点k
+            for (int k = i; k < j; k++) {
+                dp[i][j] = Math.min(dp[i][j], 
+                    dp[i][k] + dp[k+1][j] + cost(i, k, j));
+            }
+        }
+    }
+    return dp[0][n-1];
+}
+```
+
+### 📍 4. 状态机DP
+
+#### 🔹 买卖股票模板
+
+```java
+public int maxProfit(int[] prices) {
+    // 状态：0-持有股票，1-不持有股票
+    int hold = -prices[0];  // 持有股票的最大利润
+    int sold = 0;           // 不持有股票的最大利润
+    
+    for (int i = 1; i < prices.length; i++) {
+        int newSold = Math.max(sold, hold + prices[i]);  // 卖出
+        int newHold = Math.max(hold, sold - prices[i]);  // 买入
+        sold = newSold;
+        hold = newHold;
+    }
+    return sold;
+}
+```
+
+### 📍 5. 路径DP
+
+#### 🔹 网格路径模板
+
+```java
+public int uniquePaths(int m, int n) {
+    // dp[i][j] = 到达(i,j)的路径数
+    int[][] dp = new int[m][n];
+    
+    // 初始化边界
+    for (int i = 0; i < m; i++) dp[i][0] = 1;
+    for (int j = 0; j < n; j++) dp[0][j] = 1;
+    
+    // 状态转移
+    for (int i = 1; i < m; i++) {
+        for (int j = 1; j < n; j++) {
+            dp[i][j] = dp[i-1][j] + dp[i][j-1];
+        }
+    }
+    return dp[m-1][n-1];
+}
+```
+
+## ✨ DP数组可以压缩的条件
+
+### 核心原理：**状态转移只依赖于有限的前面状态**
+
+### 1. 时间维度压缩
+
+当 `dp[i][j]` 只依赖于：
+
+- `dp[i-1][...]` (上一行)
+- `dp[i][j-1], dp[i][j-2], ...` (当前行前面的元素)
+
+### 📋 压缩技巧分类
+
+### 🔥 技巧1：二维→一维（最常见）
+
+#### 适用条件：
+
+```
+dp[i][j] = f(dp[i-1][j], dp[i][j-1], ...)
+```
+
+#### 压缩方法：
+
+```java
+// 原始二维
+int[][] dp = new int[m][n];
+
+// 压缩为一维
+int[] dp = new int[n];
+```
+
+### 🔥 技巧2：滚动数组
+
+#### 适用条件：
+
+当前状态只依赖前k个状态时
+
+```java
+// 原始
+int[][] dp = new int[n][...];
+
+// 滚动数组（k=2的情况）
+int[][] dp = new int[2][...];
+// 使用 i % 2 和 (i-1) % 2 来滚动
+```
+
+### 🔥 技巧3：倒序遍历
+
+#### 适用条件：
+
+避免同一行数据被重复使用
+
+```java
+// 0-1背包的经典技巧
+for (int i = 0; i < n; i++) {
+    for (int j = W; j >= weight[i]; j--) {  // 倒序！
+        dp[j] = Math.max(dp[j], dp[j - weight[i]] + value[i]);
+    }
+}
+```
+
+### 🎮 LeetCode经典题目分析
+
+#### 📍 类型1：路径问题
+
+#### [62. 不同路径](https://leetcode.cn/problems/unique-paths/)
+
+```java
+// 原始 O(mn)
+int[][] dp = new int[m][n];
+
+// 压缩 O(n)
+int[] dp = new int[n];
+Arrays.fill(dp, 1);
+for (int i = 1; i < m; i++) {
+    for (int j = 1; j < n; j++) {
+        dp[j] = dp[j] + dp[j-1];  // 上方 + 左方
+    }
+}
+```
+
+#### [64. 最小路径和](https://leetcode.cn/problems/minimum-path-sum/)
+
+```java
+// 直接在原数组上修改，O(1)额外空间
+for (int i = 0; i < m; i++) {
+    for (int j = 0; j < n; j++) {
+        if (i == 0 && j == 0) continue;
+        else if (i == 0) grid[i][j] += grid[i][j-1];
+        else if (j == 0) grid[i][j] += grid[i-1][j];
+        else grid[i][j] += Math.min(grid[i-1][j], grid[i][j-1]);
+    }
+}
+```
+
+#### 📍 类型2：背包问题
+
+#### [416. 分割等和子集](https://leetcode.cn/problems/partition-equal-subset-sum/)
+
+```java
+// 0-1背包压缩（必须倒序）
+boolean[] dp = new boolean[target + 1];
+dp[0] = true;
+for (int num : nums) {
+    for (int j = target; j >= num; j--) {  // 倒序避免重复使用
+        dp[j] = dp[j] || dp[j - num];
+    }
+}
+```
+
+#### [518. 零钱兑换 II](https://leetcode.cn/problems/coin-change-2/)
+
+```java
+// 完全背包压缩（正序）
+int[] dp = new int[amount + 1];
+dp[0] = 1;
+for (int coin : coins) {
+    for (int j = coin; j <= amount; j++) {  // 正序允许重复使用
+        dp[j] += dp[j - coin];
+    }
+}
+```
+
+#### 📍 类型3：字符串DP
+
+#### [72. 编辑距离](https://leetcode.cn/problems/edit-distance/)
+
+```java
+// 需要保存左上角的值
+int[] dp = new int[n + 1];
+for (int i = 0; i <= n; i++) dp[i] = i;
+
+for (int i = 1; i <= m; i++) {
+    int prev = dp[0];  // 保存左上角
+    dp[0] = i;
+    for (int j = 1; j <= n; j++) {
+        int temp = dp[j];
+        if (word1.charAt(i-1) == word2.charAt(j-1)) {
+            dp[j] = prev;
+        } else {
+            dp[j] = Math.min(Math.min(dp[j-1], dp[j]), prev) + 1;
+        }
+        prev = temp;  // 更新左上角
+    }
+}
+```
+
+#### [1143. 最长公共子序列](https://leetcode.cn/problems/longest-common-subsequence/)
+
+```java
+// 类似编辑距离的压缩技巧
+int[] dp = new int[n + 1];
+for (int i = 1; i <= m; i++) {
+    int prev = 0;
+    for (int j = 1; j <= n; j++) {
+        int temp = dp[j];
+        if (text1.charAt(i-1) == text2.charAt(j-1)) {
+            dp[j] = prev + 1;
+        } else {
+            dp[j] = Math.max(dp[j], dp[j-1]);
+        }
+        prev = temp;
+    }
+}
+```
+
+#### 📍 类型4：股票问题
+
+#### [121. 买卖股票的最佳时机](https://leetcode.cn/problems/best-time-to-buy-and-sell-stock/)
+
+```java
+// 极致压缩：O(1)空间
+int buy = -prices[0];  // 持有股票的最大利润
+int sell = 0;          // 不持有股票的最大利润
+for (int i = 1; i < prices.length; i++) {
+    sell = Math.max(sell, buy + prices[i]);
+    buy = Math.max(buy, -prices[i]);
+}
+```
+
+#### [122. 买卖股票的最佳时机 II](https://leetcode.cn/problems/best-time-to-buy-and-sell-stock-ii/)
+
+```java
+// 状态压缩
+int buy = -prices[0];
+int sell = 0;
+for (int i = 1; i < prices.length; i++) {
+    int newSell = Math.max(sell, buy + prices[i]);
+    int newBuy = Math.max(buy, sell - prices[i]);
+    sell = newSell;
+    buy = newBuy;
+}
+```
+
+### 🚨 压缩时的注意事项
+
+#### ⚠️ 1. 遍历顺序很重要
+
+```java
+// 错误：会重复使用当前行的值
+for (int j = 0; j < n; j++) {
+    dp[j] = dp[j] + dp[j-1];
+}
+
+// 正确：0-1背包必须倒序
+for (int j = W; j >= weight; j--) {
+    dp[j] = Math.max(dp[j], dp[j-weight] + value);
+}
+```
+
+#### ⚠️ 2. 保存必要的中间值
+
+```java
+// 当需要左上角dp[i-1][j-1]时
+int prev = dp[0];  // 保存左上角
+for (int j = 1; j <= n; j++) {
+    int temp = dp[j];
+    // ... 状态转移
+    prev = temp;  // 更新左上角
+}
+```
+
+#### ⚠️ 3. 边界条件处理
+
+```java
+// 确保边界正确初始化
+dp[0] = 初始值;
+for (int i = 1; i <= n; i++) {
+    dp[i] = 边界值;
+}
+```
+
+### 🎉 小结：压缩判断技巧
+
+#### ✅ 可以压缩：
+
+1. **状态转移只看前面有限行/列**
+2. **没有"跳跃式"依赖**（如dp\[i][j]依赖dp\[i-3][j-2]）
+3. **转移方程中的索引有规律**
+
+#### ❌ 难以压缩：
+
+1. **需要查看任意历史状态**
+2. **状态转移有复杂的跳跃模式**
+3. **需要同时保存多个维度的历史信息**
+
+#### 🔧 压缩步骤：
+
+1. **分析状态转移方程**
+2. **确定依赖关系**
+3. **选择合适的遍历顺序**
+4. **处理边界和中间值保存**
+5. **验证正确性**
+
+## 🛠️ 解题技巧总结
+
+### 🔧 技巧1: 状态定义的艺术
+
+```java
+// ❌ 模糊定义
+dp[i] = 第i个位置的答案
+
+// ✅ 清晰定义  
+dp[i] = 以第i个元素结尾的最长递增子序列长度
+```
+
+### 🔧 技巧2: 边界处理技巧
+
+```java
+// 技巧1: 增加哨兵位置
+int[] dp = new int[n + 1];  // 多申请一位，dp[0]作为边界
+
+// 技巧2: 特殊值初始化
+Arrays.fill(dp, Integer.MAX_VALUE);  // 最小值问题
+Arrays.fill(dp, -1);                 // 标记未计算状态
+
+// 技巧3: 提前处理边界
+if (n == 0) return 0;
+if (n == 1) return nums[0];
+```
+
+### 🔧 技巧3: 优化技巧
+
+#### 🚀 空间优化
+
+```java
+// 一维化：当前状态只依赖前一行
+int[] dp = new int[n];  // 而不是 int[][] dp = new int[m][n];
+
+// 滚动数组：只依赖前k行
+int[][] dp = new int[2][n];  // 而不是 int[][] dp = new int[m][n];
+int cur = 0, pre = 1;
+
+// 几个变量：状态数很少时
+int dp0 = 0, dp1 = 0, dp2 = 0;
+```
+
+#### 🚀 时间优化
+
+```java
+// 二分优化：LIS问题
+// 单调栈优化：某些区间DP
+// 矩阵快速幂：线性递推关系
+```
+
+### 🔧 技巧4: 调试技巧
+
+```java
+// 打印DP表格
+private void printDP(int[][] dp) {
+    for (int i = 0; i < dp.length; i++) {
+        System.out.println(Arrays.toString(dp[i]));
+    }
+    System.out.println();
+}
+
+// 验证小规模数据
+// 手工模拟状态转移过程
+// 检查边界条件
+```
+
+## 🚨 常见错误和避免方法
+
+### ❌ 常见错误1: 状态定义不清
+
+```java
+// 错误：不知道dp[i]具体含义
+dp[i] = ?
+
+// 正确：明确定义
+dp[i] = 以nums[i]结尾的最大子数组和
+```
+
+### ❌ 常见错误2: 边界处理错误
+
+```java
+// 错误：忘记初始化
+int[] dp = new int[n];
+
+// 正确：正确初始化
+int[] dp = new int[n];
+dp[0] = nums[0];  // 或其他合理初值
+```
+
+### ❌ 常见错误3: 遍历顺序错误
+
+```java
+// 错误：使用了尚未计算的状态
+for (int i = 0; i < n; i++) {
+    dp[i] = dp[i+1] + nums[i];  // dp[i+1]还没计算！
+}
+
+// 正确：保证依赖的状态已计算
+for (int i = n-2; i >= 0; i--) {
+    dp[i] = dp[i+1] + nums[i];
+}
+```
+
+### ❌ 常见错误4: 状态转移方程错误
+
+```java
+// 错误：逻辑不完整
+dp[i] = dp[i-1] + nums[i];  // 没考虑重新开始的情况
+
+// 正确：考虑所有可能
+dp[i] = Math.max(nums[i], dp[i-1] + nums[i]);
+```
+
+## 🏆 练习题目
+
+### 📚 入门题目（掌握基本思路）
+
+- [70. 爬楼梯](https://leetcode.cn/problems/climbing-stairs/)
+- [198. 打家劫舍](https://leetcode.cn/problems/house-robber/)
+- [62. 不同路径](https://leetcode.cn/problems/unique-paths/)
+
+### 📚 进阶题目（掌握各种类型）
+
+- [300. 最长递增子序列](https://leetcode.cn/problems/longest-increasing-subsequence/)
+- [416. 分割等和子集](https://leetcode.cn/problems/partition-equal-subset-sum/)
+- [72. 编辑距离](https://leetcode.cn/problems/edit-distance/)
+
+### 📚 高级题目（综合运用）
+
+- [312. 戳气球](https://leetcode.cn/problems/burst-balloons/)
+- [887. 鸡蛋掉落](https://leetcode.cn/problems/super-egg-drop/)
+- [1143. 最长公共子序列](https://leetcode.cn/problems/longest-common-subsequence/)
+
+## 🎯 总结口诀
+
+```
+状态定义要清晰，转移方程是核心
+边界初始化正确，遍历顺序不能乱  
+空间时间可优化，调试验证保正确
+```
+
+这样，大多数DP类的题目都能迎刃而解了 🚀
+
+
+---
+
+# 阿里开发手册_学习笔记
+
+> 来源: https://ldi123.tk/MyNet/pages/62a0e5/
+> 日期: 2024-04-29 11:00:02
+
+### 常量定义
+
+【强制】long 或者 Long 初始赋值时，必须使用大写的 L，不能是小写的 l，小写容易跟数字 1 混淆，造成误解。**反例**: `Long a = 2l;` 写的是数字的 21，还是 Long 型的 2
+
+【推荐】不要使用一个常量类维护所有常量，应该按常量功能进行归类，分开维护。如: 缓存相关的常量放在类: CacheConsts 下；系统配置相关的常量放在类: ConfigConsts 下。
+
+### OOP 规约
+
+【强制】避免通过一个类的对象引用访问此类的静态变量或静态方法，无谓增加编译器解析成本，直接用类名来访问即可。
+
+【强制】所有的覆写方法，必须加@Override 注解。**说明** : `getObject()` 与 `get0bject()` 的问题。一个是字母的 O，一个是数字的 0，加 `@Override`可以准确判断是否覆盖成功。另外，如果在抽象类中对方法签名进行修改，其实现类会马上编译报错。
+
+【强制】`Object` 的 `equals` 方法容易抛空指针异常，应使用常量或确定有值的对象来调用 `equals`。 **正例** : `"test".equals(object);`**反例** : `object.equals("test");`
+
+【强制】所有的相同类型的包装类对象之间值的比较，全部使用 `equals` 方法比较。
+
+【推荐】使用索引访问用 `String` 的 `split` 方法得到的数组时，需做最后一个分隔符后有无内容的检查，否则会有抛 `IndexOutOfBoundsException` 的风险。
+
+【推荐】 类内方法定义顺序依次是: 公有方法或保护方法 > 私有方法 > `getter/setter` 方法。**说明** : 公有方法是类的调用者和维护者最关心的方法，首屏展示最好；保护方法虽然只是子类关心，也可能是“模板设计模式”下的核心方法；而私有方法外部一般不需要特别关心，是一个黑盒实现；因为方法信息价值较低，所有 `Service` 和 `DAO` 的 `getter/setter` 方法放在类体最后。
+
+【推荐】 循环体内，字符串的连接方式，使用 `StringBuilder` 的 `append` 方法进行扩展。**说明** : 反编译出的字节码文件显示每次循环都会 `new` 出一个 `StringBuilder` 对象，然后进行 `append` 操作，最后通过 `toString` 方法返回 `String` 对象，造成内存资源浪费。
+
+### 集合处理
+
+【强制】使用工具类 `Arrays.asList()`把数组转换成集合时，不能使用其修改集合相关的方 法，它的 `add/remove/clear` 方法会抛出 `UnsupportedOperationException` 异常。**说明** : `asList` 的返回对象是一个 `Arrays` 内部类，并没有实现集合的修改方法。`Arrays.asList` 体现的是适配器模式，只是转换接口，后台的数据仍是数组。
+
+【强制】不要在 `foreach` 循环里进行元素的 `remove/add` `操作。remove` 元素请使用 `Iterator` 方式，如果并发操作，需要对 `Iterator` 对象加锁。
+
+【推荐】集合初始化时，指定集合初始值大小。**说明** : `HashMap` 使用 `HashMap(int initialCapacity)` 初始化， **正例** : `initialCapacity = (需要存储的元素个数 / 负载因子) + 1`。注意负载因子(即 loaderfactor)默认为 0.75，如果暂时无法确定初始值大小，请设置为 16。**反例** : `HashMap` 需要放置 1024 个元素，由于没有设置容量初始大小，随着元素不断增加，容量 7 次被迫扩大，resize 需要重建 hash 表，严重影响性能。
+
+【推荐】使用 `entrySet` 遍历 `Map` 类集合 KV，而不是 `keySet` 方式进行遍历。
+**说明** : `keySet` 其实是遍历了 2 次，一次是转为 `Iterator` 对象，另一次是从 `hashMap` 中取出 `key` 所对应的 `value`。而 `entrySet` 只是遍历了一次就把 `key` 和 `value` 都放到了 `entry` 中，效率更高。如果是 JDK8，使用 `Map.foreach` 方法。**正例** : `values()` 返回的是 V 值集合，是一个 `list` 集合对象；`keySet()` 返回的是 K 值集合，是一个 `Set` 集合对象；`entrySet()` 返回的是 K-V 值组合集合 。
+
+### 并发处理
+
+【强制】线程资源必须通过线程池提供，不允许在应用中自行显式创建线程。**说明** : 使用线程池的好处是减少在创建和销毁线程上所花的时间以及系统资源的开销，解决资 源不足的问题。如果不使用线程池，有可能造成系统创建大量同类线程而导致消耗完内存或者“过度切换”的问题。
+
+【强制】`SimpleDateFormat` 是线程不安全的类，一般不要定义为 `static` 变量，如果定义为 `static`，必须加锁，或者使用 `DateUtils` 工具类。
+
+【推荐】避免 `Random` 实例被多线程使用，虽然共享该实例是线程安全的，但会因竞争同一 seed 导致的性能下降。**说明** : `Random` 实例包括 `java.util.Random` 的实例或者 `Math.random()` 的方式。**正例** : 在 JDK7 之后，可以直接使用 API `ThreadLocalRandom`，而在 JDK7 之前，需要编码保证每个线程持有一个实例。
+
+【推荐】除常用方法(如 getXxx/isXxx)等外，不要在条件判断中执行其它复杂的语句，将复杂逻辑判断的结果赋值给一个有意义的布尔变量名，以提高可读性。
+
+【推荐】循环体中的语句要考量性能，以下操作尽量移至循环体外处理，如定义对象、变量、获取数据库连接，进行不必要的 try-catch 操作(这个 try-catch 是否可以移至循环体外)。
+
+【参考】合理处理注释掉的代码。在上方详细说明，而不是简单的注释掉。如果无用，则删除。
+	**说明** : 代码被注释掉有两种可能性: 1)后续会恢复此段代码逻辑。2)永久不用。前者如果没 有备注信息，难以知晓注释动机。后者建议直接删掉(代码仓库保存了历史代码)。
+
+【强制】在使用正则表达式时，利用好其预编译功能，可以有效加快正则匹配速度。 说明: 不要在方法体内定义: `Pattern pattern = Pattern.compile(规则);`
+
+【强制】注意 `Math.random()` 这个方法返回是 double 类型，注意取值的范围 0≤x<1(能够取到零值，注意除零异常)，如果想获取整数类型的随机数，不要将 x 放大 10 的若干倍然后取整，直接使用 Random 对象的 nextInt 或者 nextLong 方法。
+
+【推荐】任何数据结构的构造或初始化，都应指定大小，避免数据结构无限增长吃光内存。
+
+### 异常处理
+
+【强制】异常不要用来做流程控制，条件控制，因为异常的处理效率比条件分支低。
+
+【强制】对大段代码进行 try-catch，这是不负责任的表现。catch 时请分清稳定代码和非稳定代码，稳定代码指的是无论如何不会出错的代码。对于非稳定代码的 catch 尽可能进行区分异常类型，再做对应的异常处理。
+
+【强制】捕获异常是为了处理它，不要捕获了却什么都不处理而抛弃之，如果不想处理它，请将该异常抛给它的调用者。最外层的业务使用者，必须处理异常，将其转化为用户可以理解的内容。
+
+【强制】有 try 块放到了事务代码中，catch 异常后，如果需要回滚事务，一定要注意手动回滚事务。
+
+【强制】finally 块必须对资源对象、流对象进行关闭，有异常也要做 try-catch。
+	**说明** : 如果 JDK7 及以上，可以使用 try-with-resources 方式。
+
+【强制】不能在 finally 块中使用 return，finally 块中的 return 返回后方法结束执行，不会再执行 try 块中的 return 语句。
+
+【强制】捕获异常与抛异常，必须是完全匹配，或者捕获异常是抛异常的父类。
+	**说明** : 如果预期对方抛的是绣球，实际接到的是铅球，就会产生意外情况。
+
+【推荐】防止 NPE，是程序员的基本修养，注意 NPE 产生的场景:
+ 1)返回类型为基本数据类型，return 包装数据类型的对象时，自动拆箱有可能产生 NPE。
+	**反例** : `public int f() { return Integer 对象}`， 如果为 null，自动解箱抛 NPE。
+ 2) 数据库的查询结果可能为 null。
+ 3) 集合里的元素即使 isNotEmpty，取出的数据元素也可能为 null。
+ 4) 远程调用返回对象时，一律要求进行空指针判断，防止 NPE。
+ 5) 对于 Session 中获取的数据，建议 NPE 检查，避免空指针。
+ 6) 级联调用 obj.getA().getB().getC()；一连串调用，易产生 NPE。
+	**正例** : 使用 JDK8 的 Optional 类来防止 NPE 问题。
+
+【参考】在代码中使用“抛异常”还是“返回错误码”，对于公司外的 http/api 开放接口必须使用“错误码”；而应用内部推荐异常抛出；跨应用间 RPC 调用优先考虑使用 Result 方式，封装 isSuccess()方法、“错误码”、“错误简短信息”。
+
+【参考】避免出现重复的代码(Don’t Repeat Yourself)，即 DRY 原则。
+**说明** : 随意复制和粘贴代码，必然会导致代码的重复，在以后需要修改时，需要修改所有的副本，容易遗漏。必要时抽取共性方法，或者抽象公共类，甚至是共用模块。
+
+### 日志规范
+
+【强制】打日志必须使用参数化信息的方式:
+
+```javascript
+logger.debug("Processing trade with id:[{}] and symbol : [{}] ", id, symbol);
+```
+
+不要进行字符串拼接,那样会产生很多String对象，占用空间，影响性能。
+
+```javascript
+logger.debug("Processing trade with id: " + id + " symbol: " + symbol);
+```
+
+使用[]进行参数变量隔离，如有参数变量，应该写成如下写法:
+
+```javascript
+logger.debug("员工[{}] [{}]年[{}]月应得薪资为[{}]",employee,year,month,actualSalary);
+```
+
+这样的格式写法，可读性更好，对于排查问题更有帮助。
+
+【参考】如果进行了抛出异常操作，请不要记录error日志，由最终处理方进行处理：
+
+反例(不要这么做):
+
+```javascript
+try{
+    ....
+}catch(Exception ex){
+  String errorMessage=String.format("Error while reading information of user [%s]",userName);
+  logger.error(errorMessage,ex);
+  throw new UserServiceException(errorMessage,ex);
+}
+```
+
+【参考】[关于打印debug日志是否加判断日志级别的分析 - 简书 (jianshu.com)](https://www.jianshu.com/p/d26024dbe9d1)
+
+【推荐】谨慎地记录日志。生产环境禁止输出 debug 日志；有选择地输出 info 日志；如果使用 warn 来记录刚上线时的业务行为信息，一定要注意日志输出量的问题，避免把服务器磁盘 撑爆，并记得及时删除这些观察日志。通常，在生产环境中，应该将日志级别设置为 WARN 或 ERROR，而在开发环境中，可以将日志级别设置为 DEBUG 或 TRACE。
+
+### MYSQL 数据库
+
+#### [#](#建表规约) 建表规约
+
+1. 【强制】表达是与否概念的字段，必须使用 is_xxx 的方式命名，数据类型是 unsigned tinyint( 1 表示是，0 表示否)。
+   **说明** : 任何字段如果为非负数，必须是 unsigned。
+   **正例** : 表达逻辑删除的字段名 is_deleted，1 表示删除，0 表示未删除。
+2. 【强制】表名、字段名必须使用小写字母或数字，禁止出现数字开头，禁止两个下划线中间只出现数字。数据库字段名的修改代价很大，因为无法进行预发布，所以字段名称需要慎重考虑。
+   **正例** : getter_admin，task_config，level3_name
+   **反例** : GetterAdmin，taskConfig，level_3_name
+3. 【强制】表名不使用复数名词。
+   **说明** : 表名应该仅仅表示表里面的实体内容，不应该表示实体数量，对应于 DO 类名也是单数形式，符合表达习惯。
+4. 【强制】禁用保留字，如 desc、range、match、delayed 等，请参考 MySQL 官方保留字。
+5. 【强制】主键索引名为 pk_字段名；唯一索引名为 uk_字段名；普通索引名则为 idx_字段名。
+   **说明** : pk_ 即 primary key；uk_ 即 unique key；idx_ 即 index 的简称。
+6. 【强制】小数类型为 decimal，禁止使用 float 和 double。
+   **说明** : float 和 double 在存储的时候，存在精度损失的问题，很可能在值的比较时，得到不正确的结果。如果存储的数据范围超过 decimal 的范围，建议将数据拆成整数和小数分开存储。
+7. 【强制】如果存储的字符串长度几乎相等，使用 char 定长字符串类型。
+8. 【强制】varchar 是可变长字符串，不预先分配存储空间，长度不要超过 5000，如果存储长度大于此值，定义字段类型为 text，独立出来一张表，用主键来对应，避免影响其它字段索引效率。
+9. 【强制】表必备三字段: id, gmt_create, gmt_modified。 **说明** : 其中 id 必为主键，类型为 unsigned bigint、单表时自增、步长为 1。gmt_create, gmt_modified 的类型均为 date_time 类型。
+10. 【推荐】表的命名最好是加上“业务名称_表的作用”。
+    **正例** : tiger_task / tiger_reader / mpp_config
+11. 【推荐】库名与应用名称尽量一致。
+12. 【推荐】如果修改字段含义或对字段表示的状态追加时，需要及时更新字段注释。
+13. 【推荐】字段允许适当冗余，以提高查询性能，但必须考虑数据一致。冗余字段应遵循:
+     1)不是频繁修改的字段。
+     2)不是 varchar 超长字段，更不能是 text 字段。
+    **正例** : 商品类目名称使用频率高，字段长度短，名称基本一成不变，可在相关联的表中冗余存 储类目名称，避免关联查询。
+14. 【推荐】单表行数超过 500 万行或者单表容量超过 2GB，才推荐进行分库分表。
+    **说明** : 如果预计三年后的数据量根本达不到这个级别，请不要在创建表时就分库分表。
+15. 【参考】合适的字符存储长度，不但节约数据库表空间、节约索引存储，更重要的是提升检索速度。
+    **正例** : 如下表，其中无符号值可以避免误存负数，且扩大了表示范围。
+
+| 对象     | 年龄区间   | 类型              | 表示范围                       |
+| :------- | :--------- | :---------------- | :----------------------------- |
+| 人       | 150 岁之内 | unsigned tinyint  | 无符号值: 0 到 255             |
+| 龟       | 数百岁     | unsigned smallint | 无符号值: 0 到 65535           |
+| 恐龙化石 | 数千万年   | unsigned int      | 无符号值: 0 到约 42.9 亿       |
+| 太阳     | 约 50 亿年 | unsigned bigint   | 无符号值: 0 到约 10 的 19 次方 |
+
+#### [#](#索引规约) 索引规约
+
+1. 【强制】业务上具有唯一特性的字段，即使是多个字段的组合，也必须建成唯一索引。 说明: 不要以为唯一索引影响了 insert 速度，这个速度损耗可以忽略，但提高查找速度是明显的；另外，即使在应用层做了非常完善的校验控制，只要没有唯一索引，根据墨菲定律，必然有脏数据产生。
+2. 【强制】 超过三个表禁止 join。需要 join 的字段，数据类型必须绝对一致；多表关联查询时，保证被关联的字段需要有索引。
+   **说明** : 即使双表 join 也要注意表索引、SQL 性能。
+3. 【强制】在 varchar 字段上建立索引时，必须指定索引长度，没必要对全字段建立索引，根据实际文本区分度决定索引长度即可。
+   **说明** : 索引的长度与区分度是一对矛盾体，一般对字符串类型数据，长度为 20 的索引，区分度会高达 90%以上，可以使用 count(distinct left(列名, 索引长度))/count(*)的区分度来确定。
+4. 【强制】页面搜索严禁左模糊或者全模糊，如果需要请走搜索引擎来解决。
+   **说明** : 索引文件具有 B-Tree 的最左前缀匹配特性，如果左边的值未确定，那么无法使用此索引。
+5. 【推荐】如果有 order by 的场景，请注意利用索引的有序性。order by 最后的字段是组合索引的一部分，并且放在索引组合顺序的最后，避免出现 file_sort 的情况，影响查询性能。
+   **正例** : where a=? and b=? order by c; 索引: a_b_c
+   **反例** : 索引中有范围查找，那么索引有序性无法利用，如: WHERE a>10 ORDER BY b; 索引 a_b 无法排序。
+6. 【推荐】利用覆盖索引来进行查询操作，避免回表。
+   **说明** : 如果一本书需要知道第 11 章是什么标题，会翻开第 11 章对应的那一页吗? 目录浏览一下就好，这个目录就是起到覆盖索引的作用。
+   **正例** : 能够建立索引的种类: 主键索引、唯一索引、普通索引，而覆盖索引是一种查询的一种 效果，用 explain 的结果，extra 列会出现: using index。
+7. 【推荐】利用延迟关联或者子查询优化超多分页场景。
+   **说明** : MySQL 并不是跳过 offset 行，而是取 offset+N 行，然后返回放弃前 offset 行，返回 N 行，那当 offset 特别大的时候，效率就非常的低下，要么控制返回的总页数，要么对超过特定阈值的页数进行 SQL 改写。
+   **正例** : 先快速定位需要获取的 id 段，然后再关联: SELECT a.* FROM 表 1 a, (select id from 表 1 where 条件 LIMIT 100000,20 ) b where a.id=b.id
+8. 【推荐】SQL 性能优化的目标: 至少要达到 range 级别，要求是 ref 级别，如果可以是 consts 最好。
+   **说明** :
+    1) consts 单表中最多只有一个匹配行(主键或者唯一索引)，在优化阶段即可读取到数据。
+    2) ref 指的是使用普通的索引(normal index)。
+    3) range 对索引进行范围检索。
+   **反例** : explain 表的结果，type=index，索引物理文件全扫描，速度非常慢，这个 index 级别比较 range 还低，与全表扫描是小巫见大巫。
+9. 【推荐】建组合索引的时候，区分度最高的在最左边。
+   **正例** : 如果 where a=? and b=? ，a 列的几乎接近于唯一值，那么只需要单建 idx_a 索引即可。
+   **说明** : 存在非等号和等号混合判断条件时，在建索引时，请把等号条件的列前置。如: where a>? and b=? 那么即使 a 的区分度更高，也必须把 b 放在索引的最前列。
+10. 【推荐】防止因字段类型不同造成的隐式转换，导致索引失效。
+11. 【参考】创建索引时避免有如下极端误解:
+     1)宁滥勿缺。误认为一个查询就需要建一个索引。
+     2)宁缺勿滥。误认为索引会消耗空间、严重拖慢更新和新增速度。
+     3)抵制惟一索引。误认为业务的惟一性一律需要在应用层通过“先查后插”方式解决。
+
+#### [#](#sql-语句) SQL 语句
+
+1. 【强制】不要使用 count(列名)或 count(常量)来替代 count(*)，count(*)是 SQL92 定义的标准统计行数的语法，跟数据库无关，跟 NULL 和非 NULL 无关。
+   **说明** : count(*)会统计值为 NULL 的行，而 count(列名)不会统计此列为 NULL 值的行。
+
+2. 【强制】count(distinct col) 计算该列除 NULL 之外的不重复行数，注意 count(distinct col1, col2) 如果其中一列全为 NULL，那么即使另一列有不同的值，也返回为 0。
+
+3. 【强制】当某一列的值全是 NULL 时，count(col)的返回结果为 0，但 sum(col)的返回结果为 NULL，因此使用 sum()时需注意 NPE 问题。
+   **正例** : 可以使用如下方式来避免 sum 的 NPE 问题: SELECT IF(ISNULL(SUM(g)),0,SUM(g)) FROM table;
+
+4. 【强制】使用 ISNULL()来判断是否为 NULL 值。注意: NULL 与任何值的直接比较都为 NULL。
+   **说明** :
+
+   ```java
+       1) NULL<>NULL 的返回结果是 NULL，而不是 false。  
+       2) NULL=NULL 的返回结果是 NULL，而不是 true。  
+       3) NULL<>1 的返回结果是 NULL，而不是 true。  
+   ```
+
+5. 【强制】在代码中写分页查询逻辑时，若 count 为 0 应直接返回，避免执行后面的分页语句。
+
+6. 【强制】不得使用外键与级联，一切外键概念必须在应用层解决。
+   **说明** : (概念解释)学生表中的 student_id 是主键，那么成绩表中的 student_id 则为外键。如果更新学生表中的 student_id，同时触发成绩表中的 student_id 更新，则为级联更新。外键与级联更新适用于单机低并发，不适合分布式、高并发集群；级联更新是强阻塞，存在数据库更新风暴的风险；外键影响数据库的插入速
+
+7. 【强制】禁止使用存储过程，存储过程难以调试和扩展，更没有移植性。
+
+8. 【强制】数据订正时，删除和修改记录时，要先 select，避免出现误删除，确认无误才能执行更新语句。
+
+9. 【推荐】in 操作能避免则避免，若实在避免不了，需要仔细评估 in 后边的集合元素数量，控制在 1000 个之内。
+
+10. 【参考】如果有全球化需要，所有的字符存储与表示，均以 utf-8 编码，注意字符统计函数的区别。
+    **说明** :
+     SELECT LENGTH("轻松工作")； 返回为 12
+     SELECT CHARACTER_LENGTH("轻松工作")； 返回为 4
+     如果要使用表情，那么使用 utfmb4 来进行存储，注意它与 utf-8 编码的区别。
+
+11. 【参考】TRUNCATE TABLE 比 DELETE 速度快，且使用的系统和事务日志资源少，但 TRUNCATE 无事务且不触发 trigger，有可能造成事故，故不建议在开发代码中使用此语句。
+    **说明** : TRUNCATE TABLE 在功能上与不带 WHERE 子句的 DELETE 语句相同。
+
+#### [#](#orm-映射) ORM 映射
+
+1. 【强制】在表查询中，一律不要使用 * 作为查询的字段列表，需要哪些字段必须明确写明。
+   **说明** : 1)增加查询分析器解析成本。2)增减字段容易与 resultMap 配置不一致。
+
+2. 【强制】POJO 类的布尔属性不能加 is，而数据库字段必须加 is_，要求在 resultMap 中进行字段与属性之间的映射。
+   **说明** : 参见定义 POJO 类以及数据库字段定义规定，在`<resultMap>`中增加映射，是必须的。在 MyBatis Generator 生成的代码中，需要进行对应的修改。
+
+3. 【强制】不要用 resultClass 当返回参数，即使所有类属性名与数据库字段一一对应，也需要定义；反过来，每一个表也必然有一个与之对应。
+   **说明** : 配置映射关系，使字段与 DO 类解耦，方便维护。
+
+4. 【强制】sql.xml 配置参数使用: #{}，#param# 不要使用${} 此种方式容易出现 SQL 注入。
+
+5. 【强制】iBATIS 自带的 queryForList(String statementName,int start,int size)不推荐使用。
+   **说明** : 其实现方式是在数据库取到statementName对应的SQL语句的所有记录，再通过subList 取 start,size 的子集合。
+   **正例** :
+
+   ```
+    Map<String, Object> map = new HashMap<String, Object>();
+    map.put("start", start);
+    map.put("size", size);
+   ```
+
+6. 【强制】不允许直接拿 HashMap 与 Hashtable 作为查询结果集的输出。
+   **说明** : resultClass=”Hashtable”，会置入字段名和属性值，但是值的类型不可控。
+
+7. 【强制】更新数据表记录时，必须同时更新记录对应的 gmt_modified 字段值为当前时间。
+
+8. 【推荐】不要写一个大而全的数据更新接口，传入为 POJO 类，不管是不是自己的目标更新字段，都进行 update table set c1=value1,c2=value2,c3=value3; 这是不对的。执行 SQL 时，不要更新无改动的字段，一是易出错；二是效率低；三是增加 binlog 存储。
+
+9. 【参考】@Transactional 事务不要滥用。事务会影响数据库的 QPS，另外使用事务的地方需要考虑各方面的回滚方案，包括缓存回滚、搜索引擎回滚、消息补偿、统计修正等。
+
+10. 【参考】`<isEqual>`中的 compareValue 是与属性值对比的常量，一般是数字，表示相等时带上此条件；`<isNotEmpty>`表示不为空且不为 null 时执行；`<isNotNull>`表示不为 null 值时执行。
+
+### 服务器
+
+1. 【推荐】高并发服务器建议调小 TCP 协议的 time_wait 超时时间。 说明: 操作系统默认 240 秒后，才会关闭处于 time_wait 状态的连接，在高并发访问下，服 务器端会因为处于 time_wait 的连接数太多，可能无法建立新的连接，所以需要在服务器上 调小此等待值。
+   **正例** : 在 linux 服务器上请通过变更/etc/sysctl.conf 文件去修改该缺省值(秒): net.ipv4.tcp_fin_timeout = 30
+2. 【推荐】调大服务器所支持的最大文件句柄数(File Descriptor，简写为 fd)。
+   **说明** : 主流操作系统的设计是将 TCP/UDP 连接采用与文件一样的方式去管理，即一个连接对 应于一个 fd。主流的 linux 服务器默认所支持最大 fd 数量为 1024，当并发连接数很大时很容易因为 fd 不足而出现“open too many files”错误，导致新的连接无法建立。 建议将 linux 服务器所支持的最大句柄数调高数倍(与服务器的内存数量相关)。
+3. 【推荐】给 JVM 设置-XX:+HeapDumpOnOutOfMemoryError 参数，让 JVM 碰到 OOM 场景时输出 dump 信息。
+   **说明** : OOM 的发生是有概率的，甚至有规律地相隔数月才出现一例，出现时的现场信息对查错 非常有价值。
+4. 【参考】服务器内部重定向使用 forward；外部重定向地址使用 URL 拼装工具类来生成，否则 会带来 URL 维护不一致的问题和潜在的安全风险。
+
+
+---
+
+# 一个注解引发的惨案
+
+> 来源: https://ldi123.tk/MyNet/pages/dbb14a/
+> 日期: 2022-12-13 11:01:03
+
+##### Mybatis-Plus报错 java.lang.NullPointerException: null
+
+这真是一个让人自闭的问题，也是一个低级的错误，排查了半个多小时终于解决了
+
+[![z4XNyn.png](https://s1.ax1x.com/2022/12/13/z4XNyn.png)](https://imgse.com/i/z4XNyn)
+
+原因是，在引入相关的服务的时候，忘记加自动注入的注解了
+
+[![z4XULq.png](https://s1.ax1x.com/2022/12/13/z4XULq.png)](https://imgse.com/i/z4XULq)
+
+以后写代码得特别注意一下注解一定不要忘了，而且以后在排查问题的时候也要把注解纳入检查范围，特别是在自闭边缘疯狂试探的时候。
+
+
+---
+
+# gitignore失效问题的解决办法
+
+> 来源: https://ldi123.tk/MyNet/pages/b293db/
+> 日期: 2022-12-11 10:38:05
+
+#### Git 中使用 `.gitignore`失效 无法忽略node_modules问题的解决办法
+
+如果先使用 `npm` 创建了项目，然后才创建的.gitignore文件，那么在提交时本地Git并不会忽略相应的文件和路径。
+
+解决办法：
+
+- 初始化 git init
+- 关联远程仓库：git remote add origin XXX
+- 然后提交代码
+- 把本地的 node_modules 包删除
+- 再次提交删除 node_modules 包后的代码
+- 清理本地缓存（如果有）：git rm -r --cached .
+- 重新npm install下载 node_modules
+- 拉取一次远程代码： git pull
+- 重新提交本地修改的代码
+- 发现 **gitignore 生效了**，新下载的node_modules依赖不再出现在未提交文件列表里
+
+**扩展：**
+加入 **.gitignore** 中的文件路径必须得是 **untracked** 文件才能生效
+在本地 **新建** 的文件或 **未执行git add** 之前就是 **untracked**
+
+[参考1](https://blog.csdn.net/weixin_34403976/article/details/108393577)
+
+[参考2](https://blog.csdn.net/weixin_46034375/article/details/124194750)
+
+
+---
+
+# C语言
+
+> 来源: https://ldi123.tk/MyNet/pages/93bead/
+> 日期: 2022-05-23 17:53:33
+
+#### 逗号表达式
+
+**百度百科的解释**：逗号表达式，是C语言中的逗号运算符，优先级别最低，它将两个及其以上的式子连接起来，从左往右逐个计算表达式，整个表达式的值为最后一个表达式的值。
+
+逗号表达式的基本规律：
+
+1. 从左到右逐个计算
+2. 它的值为最后一个表达式的值
+3. 逗号表达式的优先级别在所有运算符中最低
+
+例如：
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+int main()
+{
+    int a=2,b=5,c=0,temp=20;
+    temp = (a=a*2,b+=a,c=b*5);
+    printf("%d",temp);
+}
+```
+
+执行结果为：45
+
+#### C语言编译过程
+
+C语言源程序进行编译的过程包括预处理、编译、链接等过程，编译过程中需要进行词法分析、语法分析、语义分析、中间代码生成、优化和目标代码生成，以及出错管理和符号表管理等。程序的语义包括静态语义和动态语义，编译过程中可以处理静态语义，动态语义在运行时处理。未定义的变量可在编译时报告，关于变量的值、循环条件的值及循环体语句的执行次数等都属于动态语义。
+
+#### 结构体（Struct）和联合体（Union）
+
+**结构体：**各成员各自拥有自己的内存，各自使用互不干涉，同时存在的，遵循内存对齐原则。一个struct变量的总长度等于所有成员的长度之和。
+
+**联合体：**各成员共用一块内存空间，并且同时只有一个成员可以得到这块内存的使用权(对该内存的读写)，一个union变量的总长度至少能容纳最大的成员变量
+
+#### `++num`和`num++`
+
+```c
+#include<stdio.h>
+int main(){
+    int num = 5;
+    printf("%d\n",++num);
+    printf("%d\n",num++);
+    printf("%d\n",num--);
+    printf("%d\n",--num);
+    return 0;
+}
+```
+
+🎈执行结果：
+
+```
+6
+6
+7
+5
+```
+
+🎈解释：
+
+前置自增（自减）和后置自增（自减）运算的含义。自增（自减）运算是C程序中频繁使用的运算，其含义是将变量的值增加1(减去1)。前置自增时，是将变量的值增加1，增1后变量的值作为表达式的值：后置自增时，是先取变量的值作为表达式的值，然后将变量的值增加1，自减运算同理。
+
+
+---
+
+# 基础操作
+
+> 来源: https://ldi123.tk/MyNet/pages/228abc/
+> 日期: 2022-05-15 12:28:37
+
+### Excel操作
+
+1. **SUM（3，2，TRUE) 计算结果**
+
+   * 语法：SUM（number1,number2, ...，numberN）
+
+   * SUM会对每一个参数进行求和，如果参数不是数值，就会隐性的转换成为数字
+
+   * 因此，该表达式会转换成sum(3,2,1)来计算
+
+2. **LEFT函数、LEFTB函数**
+
+   - LEFT函数：根据所指定的字符数，LEFT 返回文本字符串中第一个字符或前几个字符。
+   - LEFTB函数：LEFTB 基于所指定的字节数返回文本字符串中的第一个或前几个字符。一个汉字在计算机里面占用2个字节
+   - 例如：如果需要获取L3的前两个字，需要用公式“ =LEFT（L3，2）”或者“ =LEFTB（L3，4）”
+   - 类似的，有RIGHT和RIGHTTB函数
+
+### 浮点数运算
+
+1. ##### 浮点数对阶
+
+   - 在浮点数加减运算时，首先要进行对阶，根据对阶的规则，阶码和尾数将进行相应的操作。
+   - 首先应求出两数阶码Ex和Ey之差，即△E=Ex-Ey
+   - 若△E=0，表示两数阶码相等，即Ex=Ey；若△E>0，表示Ex>Ey；若△E<0，表示Ex<Ey。
+   - 当Ex≠Ey时，要通过尾数的移位来改变Ex或Ey，使Ex=Ey相等。对阶的规则是：小阶向大阶看齐。即阶码小的数的尾数右移，每右移一位，阶码加1，直到两数的阶码相等为止。如：
+   - Ex=Ey，无需对阶。
+   - Ex>Ey，则My右移。每右移一位．Ey+1→Ey，直至Ex=Ey为止。
+   - Ex<Ey，则Mx右移。每右移一位，Ex+1→Ex，直至Ex=Ey为止。
+
+### 排序算法的稳定性
+
+![7JqSJhJMem](https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/博客插图/7JqSJhJMem.png)
+
+  [具体分析参考](https://blog.csdn.net/J080624/article/details/86828483?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_baidulandingword~default-0-86828483-blog-122599076.pc_relevant_baidufeatures_v6&spm=1001.2101.3001.4242.1&utm_relevant_index=1)
+
+
+---
+
+# 计算机基础知识
+
+> 来源: https://ldi123.tk/MyNet/pages/f687fb/
+> 日期: 2022-05-12 16:14:45
+
+#### 关于传值调用和引用调用的理解
+
+传值调用
+实参---->形参（实参传数给形参，形参获得实参的数值），改变形参不改变原先的实参，因为两者在获得值之后没有任何关系。
+
+引用调用
+实参---->形参（实参传地址给形参，形参获得实参的地址），改变形参会反映在存储单元中，实参会被改变。
+
+只有实参传值或者地址给形参！
+没有形参穿值或者地址给实参的说法！
+
+形参没有确定的值，只能是变量。
+实参可以是常量、变量、表达式、函数。
+实参可以是表达式, 但不是“任意”，表达式计算结果的 类型 必须与 形参一致。当然数值不能超界溢出。
+
+例：
+
+已知函数f1()、f2()的定义如下，调用f1时为传值调用，调用f2时为引用调用。设有函数调用t＝f1(5)，那么调用执行后t的值为（ 1 ）。
+
+![yinyongdiaoyong](https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/博客插图/yinyongdiaoyong.png)
+
+解析：首先a=f2（x）=f2（1），代入到f2中进行运算，经过运算（x=x-1)后，x的值为0，f2返回值为1。这里x是引用调用，所以x的终值为0，然后f2的返回值1赋给了a。所以a=1。最终t的值为a+x=1。
+
+#### 类结构型模式和对象结构型模式
+
+结构型模式描述如何将类或对象按某种布局组成更大的结构。它分为类结构型模式和对象结构型模式，前者采用继承机制来组织接口和类，后者釆用组合或聚合来组合对象。
+
+由于组合关系或聚合关系比继承关系耦合度低，满足“合成复用原则”，所以对象结构型模式比类结构型模式具有更大的灵活性。
+
+结构型模式分为以下 7 种：
+
+1. 代理（Proxy）模式：为某对象提供一种代理以控制对该对象的访问。即客户端通过代理间接地访问该对象，从而限制、增强或修改该对象的一些特性。
+2. 适配器（Adapter）模式：将一个类的接口转换成客户希望的另外一个接口，使得原本由于接口不兼容而不能一起工作的那些类能一起工作。
+3. 桥接（Bridge）模式：将抽象与实现分离，使它们可以独立变化。它是用组合关系代替继承关系来实现的，从而降低了抽象和实现这两个可变维度的耦合度。
+4. 装饰（Decorator）模式：动态地给对象增加一些职责，即增加其额外的功能。
+5. 外观（Facade）模式：为多个复杂的子系统提供一个一致的接口，使这些子系统更加容易被访问。
+6. 享元（Flyweight）模式：运用共享技术来有效地支持大量细粒度对象的复用。
+7. 组合（Composite）模式：将对象组合成树状层次结构，使用户对单个对象和组合对象具有一致的访问性。
+
+以上 7 种结构型模式，除了适配器模式分为类结构型模式和对象结构型模式两种，其他的全部属于对象结构型模式
+
+#### 模块的7种内聚类型
+
+模块间的耦合和模块的内聚是度量模块独立性的两个准则。内聚是模块功能强度的度量，即模块内部各个元素彼此结合的紧密程度。一个模块内部各元素之间的紧密程度越高，则其内聚性越高，模块独立性越好。模块内聚类型主要有以下几类:
+
+1. 偶然内聚或巧合内聚：指一个模块内的各处理元素之间没有任何联系。
+2. 逻辑内聚：指模块内执行若干个逻辑上相似的功能，通过参数确定该模块完成哪一个功能。
+3. 时间内聚：把需要同时执行的动作组合在一起形成的模块。
+4. 过程内聚：指一个模块完成多个任务，这些任务必须按指定的过程执行。
+5. 通信内聚：指模块内的所有处理元素都在同一数据结构上操作，或者各处理使用相同的输入数据或产生相同的输出数据。
+6. 顺序内聚：指一个模块中的各个处理元素都密切相关于同一各功能且必须顺序执行，前一个功能元素的输出就是下一个功能的输入。
+7. 功能内聚：指模块内的所有元素共同作用完成一个功能，缺一不可。
+
+#### 数据库实体属性基础知识
+
+- 1、**简单属性**：简单属性是原子的、不可再分的，例如某人的性别，如果不特别声明，通常都是指简单属性。
+- 2、**复合属性**：复合属性是相对于简单属性来说的，复合属性可以细分为更小的部分，即可以划分为别的属性，例如通信地址可以进一步划分为邮编、省、市和街道等。
+- 3、**单值属性**：指属性对于一个特定的实体都只有单独的一个值，例如对于一个特定的学生，在系统中只对应一个学号和身份证号。
+- 4、**多值属性**：多值属性是相对于单值属性来说的，在某些特定情况下，一个属性可以对应一组值，例如一个部门可以有多部电话，那么电话的属性就属于多值属性。
+- 5、**NULL属性**：当实体在某个属性上没有值，或属性值未知时，使用NULL值，表示无意义或不知道。
+- 6、**派生属性**：该属性可以从其他属性得出，例如“学生”实体中有“生日”和“年龄”等属性，从“生日”可以计算出“年龄”属性的值，“年龄”属性就是派生属性。
+
+#### 多态的四种不同形式
+
+在收到消息时，对象要予以响应。不同的对象收到同一消息可以产生完全不同的结果，这一现象称为多态。在使用多态的时候，用户可以发送一个通用的消息，而实现的细节由接收对象自行决定。这样，同一消息就可以调用不同的方法。多态的实现受到继承的支持，利用类继承的层次关系，把具有通用功能的消息存放在高层次，而不同的实现这一功能的行为放在较低层次，在这些低层次的对象能够给通用消息以不同的响应。
+
+**多态总体上分为：编译时的多态（静态多态）和运行时的多态（动态多态），Cardelli和Wegner把多态细分为4类：**
+
+- 参数多态：采用参数化模板，通过给出不同的类型参数，使得一个结构有多种类型。如C++语言中的函数模板和类模板属于参数多态。参数多态又叫静态多态，它的执行速度快，异常少，调用在编译时已经确定。参数多态是应用比较广泛的一种多态，被称为最纯的多态。
+- 包含多态：在许多语言中都存在，最常见的例子就是子类型化，即一个类型是另外一个类型的子类型。一般需要进行运行时的类型检查，属于动态多态。包含多态的基础是虚函数。虚函数是引入了派生概念后用来表现基类和派生类的成员函数之间的一种关系。
+- 过载多态：同一个名字在不同的上下文中所代表的含义不同。典型的例子是运算符重载和函数重载，属于静态多态。
+- 强制多态：编译程序通过语义操作，把操作对象的类型强行加以变换，以符合函数或操作符的要求。程序设计语言中基本类型的大多数操作符，在发生不同类型的数据进行混合运算时，编译程序一般都会进行强制多态。程序员也可以显示地进行强制多态的操作。如int+double,编译系统一般会把int转换为double,然后执行double+double运算，这个int->double的转换，就实现了强制多态，即可是隐式的，也可显式转换。强制多态属于静态多态。
+
+#### 用户界面设计原则
+
+✨简易性（便于使用和理解，减少错误选择的可能）
+
+✨用户的语言（友好人性化提示，使用用户容易接受的方式）
+
+✨记忆负担最小化（转换界面而不是选择一系列的命令行）
+
+✨一致性（术语一致、风格和内容一致、色调字体一致等）
+
+✨利用用户的熟悉程度（与其他众多的字体风格、按钮颜色等一致）
+
+✨从用户的观点考虑（以用户为中心，用户参与界面设计）
+
+✨排列分组（有序整齐方便查找和使用）
+
+✨安全性（选择可逆，避免选错无法恢复）
+
+✨人性化（从熟练用户和新手用户双方考虑，尽量可以根据需求定制界面）
+
+#### 软件测试--白盒测试方法
+
+**✔语句覆盖**
+顾名思义就是针对代码语句，设计出来的用例要保证程序中的每一个语句至少被执行一次。
+通常语句覆盖认为是“最弱覆盖”，因为它仅仅考虑对代码中的执行语句进行覆盖而没有考虑各种条件和分支，比较难以发现代码中的问题。
+**✔分支覆盖**
+也称为判定覆盖，判定表达式至少获得一次“真”、“假”值。判定覆盖比语句覆盖强。
+**✔条件覆盖**
+条件覆盖要求设计用例时针对判断语句里面每个条件表达式true 和 false各取值一次，不考虑判断语句的计算结果（不考虑组合情况）
+**✔判定条件覆盖（分支条件覆盖）**
+设计测试用例时，使得判断语句中每个条件表达式的所有可能结果至少出现一次，每个判断语句本身所有可能结果也至少出现一次。
+**✔组合覆盖**
+设计测试用例时，使得每个判断语句中条件结果的所有可能组合至少出现一次。
+**✔路径覆盖**
+设计测试用例时，覆盖程序中所有可能的执行路径
+
+#### 数据库 三层模式两层映像
+
+**🐉三层模式**
+
+1. 外模式： 又用户模式，应用程序接触外模式，外模式是数据库用户（应用程序员、最终用户）能够看到的使用的局部数据的逻辑结构和特征的描述，是数据库的数据视图，是与某一个应用有关的数据的逻辑表示。用户可以通过外模式描述语言来描述、定义对应于用户的数据记录(外模式)，也可以利用数据操纵语言(Data Manipulation Language，DML)对这些数据记录进行处理。
+2. 模式 ：也称为逻辑模式，它是DB中全体数据的逻辑结构和特征的描述，是所有用户的公共数据视图。模式层是数据库模式结构的中间层，既不涉及到数据的物理存储细节和硬件环境，也与具体的应用程序、应用开发工具以及高级程序设计语言无关（C、C++、JAVA等）。
+3. 内模式： 又称存储模式。它是数据物理结构和存储方式的描述，是数据在数据库内部的表示方式。例如，记录的存储方式是顺序结构存储还是B树结构存储；索引按什么方式组织；数据是否压缩，是否加密；数据的存储记录结构有何规定等。
+
+**🐉两层映像**
+
+1. 外模式/模式映象：定义在外模式描述中，把描述局部逻辑结构的外模式与描述全局逻辑结构的模式联系起来 ，保证逻辑独立性：当模式改变时，只要对外模式/模式映象做相应的改变，使外模式保持不变，则以外模式为依据的应用程序不受影响，从而保证了数据与程序之间的逻辑独立性，也就是数据的逻辑独立性。
+2. 模式/内模式映象：定义在模式描述中，把描述全局逻辑结构的模式与描述物理结构的内模式联系起来 ，保证物理独立性：当内模式改变时，比如存储设备或存储方式有所改变，只要模式/内模式映象做相应的改变，使模式保持不变，则应用程序保持不变。
+
+![20210623012906234](https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/博客插图/20210623012906234.png)
+
+#### 计算机网络--几个常见的网络协议
+
+🐣**ARP协议**
+
+在以太网中，源主机和目标主机进行通信，那么必须要知道目标主机的IP地址与MAC地址。通常目标主机的IP地址容易获得，如 ping 192.168.1.2，那么目标主机的MAC地址怎么获得呢？它是通过ARP地址解析协议获得的。ARP地址解析协议（address resolution protocol）基本功能是通过目标主机的IP地址查询目标主机的MAC地址，使源主机获得目标IP与MAC地址的对应关系，然后完成正常通信。ARP地址解析协议的工作原理如下。
+
+🐣**ICMP协议**
+
+ICMP是（Internet Control Message Protocol）Internet控制报文协议。它是TCP/IP协议族的一个子协议，用于在IP主机、路由器之间传递控制消息。控制消息是指网络通不通、主机是否可达、路由是否可用等网络本身的消息。这些控制消息虽然并不传输用户数据，但是对于用户数据的传递起着重要的作用。
+
+🐣**DHCP协议**
+
+DHCP（Dynamic Host Configuration Protocol）动态主机配置协议是一个[局域网](http://baike.baidu.com/view/788.htm)的[网络协议](http://baike.baidu.com/view/16603.htm)，使用[UDP](http://baike.baidu.com/view/30509.htm)协议工作， 主要有两个用途：给内部网络或[网络服务](http://baike.baidu.com/view/1279152.htm)供应商自动分配[IP地址](http://baike.baidu.com/view/3930.htm)，给用户或者内部[网络管理员](http://baike.baidu.com/view/31921.htm)作为对所有[计算机](http://baike.baidu.com/view/3314.htm)作中央管理的手段。DHCP有3个端口，其中UDP67和UDP68为正常的DHCP服务端口，分别作为DHCP Server和DHCP Client的服务端口；546号端口用于DHCPv6 Client，而不用于DHCPv4。
+
+#### 区别主动攻击与被动攻击，以及如何防范
+
+**(1) 被动攻击**
+🍦：被动攻击是指在未经用户同意和认可的情况下攻击者嗅探窃听获得信息或数据文件并对其分析，但不对数据信息做任何修改，不影响系统的运行。被动攻击的本质是窃听或监视数据传输。
+
+🍦：由于被动攻击不会对被动攻击对象做任何修改，留下的痕迹较少或根本没有留下任何痕迹，因而非常难以检测，所以抗击被动攻击的重点在于预防，具体的措施包括VPN(虚拟专用网络)、采用加密技术保护网络及使用加密保护的分布式网络等。
+
+**(2) 主动攻击**
+🍟：主动攻击是指攻击者通过有选择的修改、删除、延迟、乱序、复制、插入数据流或数据流的一部分以达到其非法目的，主动攻击主要涉及某些数据流的篡改或虚假数据流的产生，可能改变信息或危害系统，威胁信息完整性，可用性、真实性和有效性。主动攻击主要分为重放，篡改，伪造，拒绝服务
+
+🍟：应对主动攻击的主要途径是检测，以及能从此攻击造成的破坏中及时地恢复，同时入侵检测系统或工具还具有某种遏制效果，在一定程度上也能起到防止攻击扩大的作用，具体的措施包括入侵检测、安全审计和完整性恢复等。
+
+#### 补码编码的理解
+
+例如二进制数：1111 和 0101
+
+表示补码时：最高位表示符号位，值为1表示负数，值为0表示非负数
+
+转换成十进制：用二进制每一位数乘以对于的权重，然后相加得到十进制表示的数值
+
+于是：
+
+[0101]~10~：-0·2^3^ + 1·2^2^ + 0·2^1^ + 1·2^0^  = 5
+
+[1111]~10~：-1·2^3^ + 1·2^2^ + 1·2^1^ + 1·2^0^  = -1
+
+补码所能表示的值的范围：
+
+* 最小值[100···00]，也就是设置负权的位为1，其他位为0
+* 最大值[011···11]，也就是清除具有负权值的位，设置其他位为1
+
+
+---
+
+# Linux定时器
+
+> 来源: https://ldi123.tk/MyNet/pages/a7fd8a/
+> 日期: 2022-04-22 20:20:53
+
+#### Linux定时执行SQL操作步骤
+
+1、新建脚本文件，例如（.sh文件，.py文件等）
+
+```shell
+touch test.sh
+touch test.sql
+```
+
+2、给脚本添加可执行权限
+
+```shell
+chmod +x test.sh
+```
+
+3、编辑脚本
+
+```shell
+vi test.sh
+```
+
+输入要执行的命令(这里以连接MySQL执行SQL语句为例)，其中`-u`后面的xxx是登录MySQL的用户名，`-p`后面的`xxx`是你的登录密码，后面的`test`是要连接的数据库名称，最后是把test.sql中的内容重定向到数据库执行。
+
+```sh
+#!/bin/sh
+mysql -uXXX -P3306 -pXXX  test < test.sql
+```
+
+编辑`test.sql`文件
+
+```sh
+vi test.sql
+```
+
+在`test.sql`文件中输入要执行的SQL
+
+```sql
+select * from abc where id = '1' limit 1
+```
+
+4、添加`crontab` 定时任务
+
+执行命令：
+
+```shell
+crontab -e
+```
+
+输入`i`进入编辑模式，在定时任务列表中添加一条任务：
+
+```shell
+10 16 * * *  sh test.sh > /root/res.txt 2>&1
+```
+
+添加完成后，按`esc`键，输入`:wq`即可保存定时器，然后定时器就会在指定的时间执行这条任务了
+
+注：这条命令的意思是每天下午16点10分执行`test.sh`脚本，将执行结果（包括错误信息）输出到root目录下的`res.txt`文件中
+
+5、`crontab`  格式说明
+
+```shell
+minute   hour   day   month   week   command
+# For details see man 4 crontabs
+# Example of job definition:
+.---------------------------------- minute (0 - 59) 表示分钟
+|  .------------------------------- hour (0 - 23)   表示小时
+|  |  .---------------------------- day of month (1 - 31)   表示日期
+|  |  |  .------------------------- month (1 - 12) OR jan,feb,mar,apr ... 表示月份
+|  |  |  |  .---------------------- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat  表示星期（0 或 7 表示星期天）
+|  |  |  |  |  .------------------- username  以哪个用户来执行 
+|  |  |  |  |  |            .------ command  要执行的命令，可以是系统命令，也可以是自己编写的脚本文件
+|  |  |  |  |  |            |
+*  *  *  *  * user-name  command to be executed
+```
+
+6、`Linux`中`2>&1` 的含义
+
+| 名称                 | 代码 | 操作符           | Java中表示 | Linux 下文件描述符（Debian 为例)             |
+| :------------------- | :--- | :--------------- | :--------- | :------------------------------------------- |
+| 标准输入(stdin)      | 0    | < 或 <<          | System.in  | /dev/stdin -> /proc/self/fd/0 -> /dev/pts/0  |
+| 标准输出(stdout)     | 1    | >, >>, 1> 或 1>> | System.out | /dev/stdout -> /proc/self/fd/1 -> /dev/pts/0 |
+| 标准错误输出(stderr) | 2    | 2> 或 2>>        | System.err | /dev/stderr -> /proc/self/fd/2 -> /dev/pts/0 |
+
+含义：将标准错误输出重定向到标准输出
+
+解释：
+
+```bash
+xxx.sh >log 2>&1 
+```
+
+- 本来1----->屏幕 （1指向屏幕）
+- 执行>log后， 1----->log (1指向log)
+- 执行2>&1后， 2----->1 (2指向1，而1指向log,因此2也指向了log)
+
+7、分享一个好用的`crontab` 在线工具，可以很直观的验证我们写的`crontab`表达式是否正确
+
+[在线crontab表达式执行时间计算](https://www.matools.com/crontab)
+
+
+---
+
+# JavaScript笔记
+
+> 来源: https://ldi123.tk/MyNet/pages/312fd7/
+> 日期: 2022-02-14 18:28:17
+
+#### Javascript 判断map为空
+
+```javascript
+let map = {};
+
+//方法1：
+Object.keys(map).length === 0
+
+//方法2：
+if (JSON.stringify(map) === JSON.stringify({}))
+    
+```
+
+#### 使用map方法获得数组对象中的特定属性值
+
+```js
+// 在实际中，我们可以利用map方法方便获得数组对象中的特定属性值
+let users = [
+    {"name": "张小花", "email": "zhang@qq.com"},
+    {"name": "body", "email": "body@qq.com"},
+    {"name": "李小璐", "email": "li@qq.com"}
+];
+let newEmail = users.map(function (item) {
+    return item.name;
+});
+console.log(newEmail.join(','));
+//第2种获取数组对象中的值
+let emails = [];
+users.map(function (item){
+    emails.push(item.email);
+});
+console.log(emails);
+// ["zhang@qq.com", "body@qq.com", "li@qq.com"]
+```
+
+[参考链接](https://www.cnblogs.com/yizhilin/p/12918559.html)
+
+
+---
+
+# MySQL运维
+
+> 来源: https://ldi123.tk/MyNet/pages/f11844/
+> 日期: 2022-02-14 17:18:38
+
+#### MySQL筛选非空数据
+
+在mysql中，筛选非空的时候经常会用到`is not null`和`!=null`，这两种方法单从字面上来看感觉是差不多的，其实如果去运行一下试试的话差别会很大！
+
+null 表示什么也不是， 不能用=、>、< … 所有的判断，结果都是null，所以只能用 is null进行判断。
+默认情况下，推荐使用 IS NOT NULL去判断，因为SQL默认情况下对！= Null的判断会永远返回0行数据，但没有语法错误
+
+如果你一定想要使用！= Null来判断，需要加上这个语句：set ANSI_NULLS off
+
+#### mysql 将一张表的数据更新到另外一张表中
+
+```sql
+update
+	P p
+set
+	p.xx =(
+	select
+		u.xx
+	from
+		U u
+	where
+		p.xxxx = u.xxxx
+		and p.ccc = 'ccc')
+where
+	p.aa = 'aa'
+	and p.bb = 'bb'
+group by
+	p.ddd;
+```
+
+#### [MySQL输入密码后时出现闪退的解决办法](https://blog.csdn.net/weixin_39956356/article/details/114823665?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_baidulandingword~default-0.queryctrv2&spm=1001.2101.3001.4242.1&utm_relevant_index=1)
+
+#### MySQL执行查询过程
+
+1. 客户端向MySQL服务器发送一条查询请求
+2. 服务器首先检查查询缓存，如果命中缓存，则立刻返回存储在缓存中的结果。否则进入下一阶段
+3. 服务器进行SQL解析、预处理、再由优化器生成对应的执行计划
+4. MySQL根据执行计划，调用存储引擎的API来执行查询
+5. 将结果返回给客户端，同时缓存查询结果
+
+#### 数据库的四种转储方法
+
+①静态转储：转储期间不能对数据库进行任何存取等活动，是最直接的转储方法，必须等待转储完毕后才能对数据库进行存取修改等操作；静态转储效率会比较低，转储期间，新的事务无法进行
+
+②动态转储：转储期间允许对数据进行存取或者修改；动态转储相比静态转储的好处是转储期间，不会影响新事务的运行，效率有所提高；但转储结束后的数据并不能保证即时生效，如果转储期间，事务对数据进行了修改的话，转储后的数据就不能与原数据库中的数据保持一致性，因此要把转储期间事务对数据库进行的修改活动等记录下来成为日志文件，再合并上转储后的数据，才能与原数据库保持数据一致性
+
+③海量转储：每次都转储整个数据库；相比于动态转储的好处是，不用担心数据一致性的问题，在转储后不必进行记录日志文件等操作，对于恢复数据库会相对简单；但若数据库很大，那么每次转储耗费时间就会很长，也浪费存储空间
+
+④增量转储：每次只转储上次备份后变化的数据；相对于海量转储，提高了转储效率，只对更新的数据进行转储，实际上也是减少了数据冗余，是比较实用高效的转储方法
+
+
+---
+
+# uni-app
+
+> 来源: https://ldi123.tk/MyNet/pages/f3eda5/
+> 日期: 2022-01-10 17:54:05
+
+#### 使用uni-app开发小程序
+
+[渲染层网络层错误] Failed to load local image resource /pages/xxx 
+ the server responded with a status of 500 (HTTP/1.1 500 Internal Server Error) 
+(env: Windows,mp,1.05.2111300; lib: 2.21.3)
+
+原来的代码：
+
+```vue
+<image mode="scaleToFill" src='item.avatar'> </image>
+```
+
+1.问题原因：
+
+​	uniapp编译成小程序，需要遵守小程序的规则，必须判断src的值存在再进行编译
+
+​	`src="xxx"`需要改为`:src="xxx"`
+
+2.处理方案，按如上问题原因修改，再渲染页面，就可以解决这个问题了
+
+```vue
+<image  v-if="item.avatar" :src="item.avatar" mode="aspectFit"></image>
+```
+
+
+---
+
+# 经验
+
+> 来源: https://ldi123.tk/MyNet/pages/0aed3d/
+> 日期: 2021-12-28 20:03:44
+
+#### 报错信息
+
+```js
+vue.runtime.esm.js:619 
+       [Vue warn]: Unknown custom element: <LamboPageTable> - did you register the component correctly? For recursive components, make sure to provide the "name" option.
+
+found in
+
+---> <Anonymous>
+       <Content>
+         <Layout>... (1 recursive calls)
+           <FrameAdmin>
+             <App>
+               <Root>
+```
+
+#### 可能原因：
+
+1. 把components写成了component
+
+2. import xxx from "./xxx.vue" 写成了import { xxx} from "./xxx.vue"
+3. 代码中有两个components，后一个的值把前一个覆盖了
+
+
+---
+
+# 前端
+
+> 来源: https://ldi123.tk/MyNet/pages/e3ff9d/
+> 日期: 2021-12-25 15:46:07
+
+## 前端
+
+##### white-space 属性表
+
+| white-space 属性 | 源码空格 | 源码换行 | 换行 | 容器边界换行 |
+| --------------- | -------- | -------- | -------- | ------------ |
+| normal          | 合并     | 忽略     | 换行     | 换行         |
+| nowrap          | 合并     | 忽略     | 换行     | 不换行       |
+| pre             | 保留     | 换行     | 换行     | 不换行       |
+| pre-wrap        | 保留     | 换行     | 换行     | 换行         |
+| pre-line        | 合并     | 换行     | 换行     | 换行         |
+
+##### display 属性表
+
+| 值                 | 描述                                                         |
+| :----------------- | :----------------------------------------------------------- |
+| none               | 此元素不会被显示。                                           |
+| block              | 此元素将显示为块级元素，此元素前后会带有换行符。             |
+| inline             | 默认。此元素会被显示为内联元素，元素前后没有换行符。         |
+| inline-block       | 行内块元素。（CSS2.1 新增的值）                              |
+| list-item          | 此元素会作为列表显示。                                       |
+| run-in             | 此元素会根据上下文作为块级元素或内联元素显示。               |
+| compact            | CSS 中有值 compact，不过由于缺乏广泛支持，已经从 CSS2.1 中删除。 |
+| marker             | CSS 中有值 marker，不过由于缺乏广泛支持，已经从 CSS2.1 中删除。 |
+| table              | 此元素会作为块级表格来显示，表格前后带有换行符。             |
+| inline-table       | 此元素会作为内联表格来显示，表格前后没有换行符。             |
+| table-row-group    | 此元素会作为一个或多个行的分组来显示。                       |
+| table-header-group | 此元素会作为一个或多个行的分组来显示。                       |
+| table-footer-group | 此元素会作为一个或多个行的分组来显示。                       |
+| table-row          | 此元素会作为一个表格行显示。                                 |
+| table-column-group | 此元素会作为一个或多个列的分组来显示。                       |
+| table-column       | 此元素会作为一个单元格列显示                                 |
+| table-cell         | 此元素会作为一个表格单元格显示                               |
+| table-caption      | 此元素会作为一个表格标题显示                                 |
+| inherit            | 规定应该从父元素继承 display 属性的值。                      |
+
+##### js 中数字 0 与空字符串的问题
+
+在开发前端的时候，因为有很多值数据，但这些值从后台传过来的时候，有很多可能性，如：null, undefined, 空字符, "null", "undefined"，排除这些，其他应该就差不多是正常的了、出现这些数据的时候，前端页面统一显示''（空字符）。
+
+开始的时候我写的是 value!='', 后来发现，当 value 等于 0 的时候也会被判断为''，也就是说不走这个判断下面的语句
+
+```javascript
+if(i!=''){
+    //操作语句;
+}
+```
+
+换下逻辑发现，0=='' 为true
+
+原因其实也很简单：
+
+js中有默认的隐试转换。
+
+以下是数字和字符串隐试转换规则：
+
+1. 任何非零的数为true，0为false。
+2. 字符串来说任何非空字符串为 true，空字符串为false 
+
+所以 0转换成布尔为false ,“”转化成布尔为false 所以结果为true，想非自动隐试转换判断可以使用=== 或者 !==替代 ==和!== 例如：zdconsole.log(""===0) //false
+
+当数据有时候就是0，就是要显示0，解决办法是：value===""，这个是时候就等于false了
+
+(摘自：[js中数字0与空字符串的问题 - 余情呀 - 博客园 (cnblogs.com)](https://www.cnblogs.com/yuqingya/p/12915834.html))
+
+##### [CSS背景（background）笔记](https://blog.csdn.net/weixin_44908855/article/details/106887629)
+
+##### [vue less CSS滚动条样式修改美化变细](https://javaforall.cn/179565.html)
+
+#### 自定义滚动条
+
+```
+::-webkit-scrollbar {
+  /*滚动条整体样式*/
+  width: 4px; /*高宽分别对应横竖滚动条的尺寸*/
+}
+::-webkit-scrollbar-thumb {
+  /*滚动条里面小方块*/
+  // border-radius: 10px;
+  background-color: rgba(230, 27, 23, 1);
+  height: 80px;
+}
+::-webkit-scrollbar-track {
+  /* 滚动条轨道 */
+  background-color: rgba(255, 255, 255, 1);
+}
+```
+
+存在的问题
+
+- 自定义滚动条轨道背景颜色后，即使内容还没填满容器（还不需要滑动）滚动条轨道也不会自动隐藏（一直存在）
+
+![image-20231010211041344](C:\Users\lvdi\AppData\Roaming\Typora\typora-user-images\image-20231010211041344.png)
+
+原因及解决办法
+
+- 设置了属性overflow-y: scroll，只需要改为 `overflow-y: auto`  就能自动隐藏了，如下：
+
+```
+ .list-box{
+   /* 略 */
+   /* overflow-y: scroll */
+   overflow-y: auto;
+ }
+```
+
+
+---
+
+# Java相关
+
+> 来源: https://ldi123.tk/MyNet/pages/93f462/
+> 日期: 2021-12-03 23:56:51
+
+### Java笔记
+
+###### 1.类
+
+Class
+
+###### 2.函数
+
+funtion()
+
+###### 3.变量
+
+```java
+int i = 1
+
+String s="ccc"
+
+int m="20211208"
+```
+### 永远不要把问题想得太复杂
+
+
+---
+
+# 阿里云DataV数据可视化基础操作与案例分享
+
+> 来源: https://ldi123.tk/MyNet/pages/0096d6/
+> 日期: 2024-09-03 11:12:48
+
+# DataV简介
+
+## 什么是DataV数据可视化
+
+​		DataV数据可视化是使用可视化应用的方式来分析并展示庞杂数据的阿里云产品。DataV旨在通过图形化的界面帮助不同专业背景的用户轻松搭建专业水准的可视化应用，满足会议展览、业务监控、风险预警、地理信息分析等多种业务的展示需求。
+
+## [DataV的应用场景](https://help.aliyun.com/zh/datav/datav-6-0/product-overview/scenarios?spm=a2c4g.11186623.0.0.530ace332TdnY4#721afd319371n)
+
+## DataV的功能特性
+
+### **丰富的数据可视化编辑工具**
+
+- #### **可视化拖拽界面，强大的编辑功能**
+
+  提供地图、信息、表格和控件等多种业务模块级的非图表组件，所见即所得式的配置方式，只需要通过拖拉拽即可创造出专业的可视化应用。
+
+- #### **丰富的组件库与模板库**
+
+  提供零售、工业、物联网、医疗和云计算等多种场景模板，简单修改即可快速投入使用。即便没有设计师，也可搭建专业的数据可视化看板。
+
+- #### **智能化工具**
+
+  提供智能主题配色、一键美化、大屏智能生成等工具，快速解决在搭建可视化应用时遇到的整体样式配置困难问题。
+
+### **专业的地理信息可视化**
+
+- #### **专业地理信息组件**
+
+  提供地理轨迹、地理飞线、热力分布、3D地球等效果，一站式地完成空间地理数据相关的可视分析。
+
+- #### **数据驱动三维世界生成**
+
+  提供官方基底、空间构建和模型建筑等三维城市功能，能够快速接入结构化的城市地理数据，以数据驱动城市模型的自动化生成。
+
+- #### **低代码交互功能开发**
+
+  提供简单连线的方式实现组件间的交互配置，使复杂的交互逻辑可视化呈现，更易于维护。
+
+### **灵活开放的发布部署方式**
+
+- #### **多种发布方式**
+
+  提供发布链接、二维码分享等多种发布方式，结合访问权限控制，指定访问者的查看内容。
+
+- #### **支持自定义组件接入**
+
+  提供开发者工具，基于DataV的组件规范快速开发出自定义组件，满足个性化需求。
+
+- #### **灵活的部署方式**
+
+  提供云上部署方式和本地化部署方式。通过将云上部署的内容，打包下载到内网，进行本地化部署。
+
+# DataV购买
+
+1. 登录[DataV控制台](https://datav.aliyun.com/)。
+
+2. 阅读相关协议，并选中**同意使用协议**，单击**立即开通**。
+
+3. 在服务开通页面，单击**购买**。
+
+4. 在购买页面，选择**产品版本**和**购买时长**。
+
+   DataV产品各版本的计费标准见下表：
+
+   | **购买时长** | **个人版**     | **企业版** | **专业版** | **尊享版**     |
+   | ------------ | -------------- | ---------- | ---------- | -------------- |
+   | 1个月        | 不支持按月购买 | 500元      | 2500元     | 不支持按月购买 |
+   | 2个月        | 不支持按月购买 | 1000元     | 5000元     | 不支持按月购买 |
+   | 3个月        | 不支持按月购买 | 1500元     | 7500元     | 不支持按月购买 |
+   | 4个月        | 不支持按月购买 | 2000元     | 10000元    | 不支持按月购买 |
+   | 5个月        | 不支持按月购买 | 2500元     | 12500元    | 不支持按月购买 |
+   | 6个月        | 不支持按月购买 | 3000元     | 15000元    | 不支持按月购买 |
+   | 7个月        | 不支持按月购买 | 3500元     | 17500元    | 不支持按月购买 |
+   | 8个月        | 不支持按月购买 | 4000元     | 20000元    | 不支持按月购买 |
+   | 9个月        | 不支持按月购买 | 4500元     | 22500元    | 不支持按月购买 |
+   | 1年          | 99元           | 6000元     | 30000元    | 420000元       |
+   | 2年          | 198元          | 12000元    | 60000元    | 840000元       |
+   | 3年          | 297元          | 18000元    | 90000元    | 1260000元      |
+
+   注：**企业版**和**专业版**支持按年或按月购买，**尊享版**只支持按年购买。
+
+5. 单击**立即购买**。
+
+6. 购买成功后，即可进入DataV数据可视化控制台，使用模板搭建可视化应用或者空白画布搭建可视化应用。
+
+# DataV控制台
+
+登录[DataV控制台](https://datav.aliyun.com/)后，可以对可视化应用、数据和资产等内容进行新增和编辑。![DataV控制台](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/6496530561/p431382.png)
+
+## 菜单栏
+
+单击菜单栏中的项目，可切换至对应页面进行内容管理。![菜单栏](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/6496530561/p431385.png)
+
+**说明**
+
+如果是专业版的用户，还可以依次单击**我的资产 > 我的组件包**，查看自己开发的组件。
+
+## 我的可视化
+
+在**我的可视化**页面，可以完成以下操作：
+
+- 创建：目前支持3种创建可视化应用的方式，使用模板创建PC端可视化应用、使用识图创建PC端可视化应用和[使用模板创建移动端可视化应用。
+- 查看：查看所有已经创建好的可视化应用，并可以看到继续可供创建的配额。不同的版本，创建可视化应用的数量有所不同
+- 分组：对可视化应用项目进行分组管理
+- 排序：对可视化应用项目进行排序
+- 搜索：按名称搜索可视化应用项目
+
+![我的可视化页面](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/6496530561/p431387.png)
+
+选中任意一个可视化应用，都可以看到编辑、移动分组、复制、拷屏、删除、拷屏到工作空间按钮，点击可进行相应操作。
+
+![](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/0535964951/p8018.png)
+
+## 我的数据
+
+在**我的数据**页面，可以对数据源和数据集等内容分别进行管理操作。
+
+![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/2946415761/p553948.png)
+
+##  **我的资产**
+
+在**我的资产**页面，可以对区块、设计资产、已收藏的组件、自定义组件包等内容进行管理![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/2946415761/p553979.png)
+
+## 帮助
+
+单击页面右上角的**帮助**，可以阅读帮助文档、提交工单并进入产品社区，更深一步地了解该产品的功能和使用技巧。
+
+![DataV帮助菜单](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/2949295951/p7746.png)
+
+# 创建可视化应用
+
+## 通过模板创建
+
+1. 登录[DataV控制台](https://datav.aliyun.com/)。
+
+2. 在**我的可视化**页面中，单击**PC端创建**。
+
+   ![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/2124968461/p10314.png)
+
+3. 选择一个合适的模板，此处以选择**2017双11狂欢节**模板为例，单击**创建项目**。
+
+   ![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/3867504761/p551394.png)
+
+4. 在**创建数据大屏**对话框中，输入可视化应用名称并选择一个分组。
+
+5. 单击**创建**。
+
+   应用创建成功后跳转到画布编辑器页面，可以看到一款满足展示企业新零售业务相关数据且设计精良的模板。![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/2867504761/p551396.png)
+
+## 通过空白画板创建
+
+1. 登录[DataV控制台](https://datav.aliyun.com/)。
+
+2. 在**我的可视化**页面中，单击**PC端创建**。
+
+3. 选择空白画布模板，并单击**创建项目**。
+![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/0928767561/p199091.png)
+   
+4. 在**创建数据大屏**对话框中，输入可视化应用名称，单击**创建**。
+   应用创建成功后会跳转到应用编辑器页面。
+   ![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/8495304761/p551474.png)
+   
+
+# 基本用法
+
+[例1：轮播列表](https://help.aliyun.com/zh/datav/datav-6-0/user-guide/list-carousel-2?spm=a2c4g.11186623.0.i53)
+
+[例2：数字翻牌器](https://help.aliyun.com/zh/datav/datav-6-0/user-guide/digital-flip?spm=a2c4g.11186623.0.i32)
+
+# 蓝图编辑器
+
+1. 登录[DataV控制台](https://datav.aliyun.com/)。
+
+2. 在画布编辑器页面，单击顶部工具栏的**蓝图编辑器**图标。
+
+   ![](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/7338872261/p80688.png)
+
+3. 在**蓝图编辑器**页面，将左侧的导入节点和逻辑节点拖入画布中。
+
+   **说明**：如果左侧没有**导入节点**，可返回画布编辑器，选中图层，右键**导出到蓝图编辑器**。
+
+4. 根据交互逻辑进行节点连线。
+
+5. 在右侧的配置面板中，完成逻辑节点配置，包括节点名称、上下游事件、上下游动作以及处理方法等。
+
+   添加组件、组件连线、逻辑节点配置的详细操作方法，请参见[蓝图编辑器详细功能介绍](https://help.aliyun.com/zh/datav/datav-6-0/user-guide/features-1#concept-2334130)。
+
+# 组件交互
+
+组件交互通常使用回调ID和蓝图编辑器两种方式
+
+[回调ID-以数字翻牌器为例](https://help.aliyun.com/zh/datav/datav-6-0/user-guide/how-to-use-callback-ids-to-implement-component-linkage?spm=a2c4g.11186623.0.0.98915739tqRoLZ)
+
+[蓝图编辑器-以下拉框选择器联动地图为例](https://help.aliyun.com/zh/datav/datav-6-0/user-guide/drop-down-list-selectors?spm=a2c4g.11186623.4.5.4df67b5c4P74p1&scm=20140722.H_111933._.ID_111933-OR_rec-V_1#9fcecf70d5cg8)
+
+# 数据过滤器
+
+在DataV中可以使用数据过滤器，可以通过自定义JavaScript代码，实现数据结构转换、数据筛选展示和一些简单的计算。
+
+## **前提条件**
+
+已进入画布编辑器页面。
+
+## 新建过滤器
+
+可以通过以下两种方法新建过滤器。
+
+### 通过**数据过滤器**新建。
+
+  1. 在**画布编辑器**页面，单击上方工具栏处的数据过滤器![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/9472285761/p556959.png)图标。
+
+     ![进入项目过滤器](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/4429559951/p51778.png)
+
+  2. 在**数据过滤器**面板中，单击**新建**。
+
+     ![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/9472285761/p556964.png)
+
+  3. 在过滤器配置区域，输入过滤器的名称和自定义的过滤代码，单击**保存**。![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/9472285761/p556965.png)
+
+     创建成功的过滤器会排列显示在数据过滤器列表中。
+
+### 通过组件的数据配置新建。
+
+  1. 在**画布编辑器**页面，单击上方工具栏处的资产列表![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/9472285761/p556967.png)图标。
+
+     ![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/9472285761/p556969.png)
+
+  2. 在资产列表中随意添加一个组件，单击右侧配置面板中的**数据**图标。![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/9472285761/p556970.png)
+
+  3. 在**数据**配置面板中，选中**数据过滤器**，单击**添加过滤器**。
+
+     ![添加数据过滤器入口](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/4774135951/p51733.png)
+
+  4. 在**设置数据源**页面中，单击过滤器右侧的![添加](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/2238547261/p298882.png)。![新增一个过滤器](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/4774135951/p51736.png)
+
+  5. 在**数据过滤器**配置面板中，输入过滤器名称和自定义的过滤代码，单击**保存**。![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/9472285761/p556972.png)
+
+     创建成功的过滤器会排列显示在数据过滤器列表中，并显示过滤器和组件之间的依赖关系。
+
+     通过在组件内部数据配置时，新建的过滤器同样会排列显示在**数据过滤器**列表中，并且在列表中可以看到过滤器和组件之间的依赖关系。
+
+     ![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/9472285761/p556974.png)
+
+# 数据分发
+
+数据分发可以把多个组件的数据通过API或SQL数据源等一次获取，再进行数据分发，减少数据请求次数。
+
+- 可以不用写很多个SQL
+- 只需要请求一次、提升响应速度
+- 需求或查询条件有变化时、只需要修改分发源
+
+[官方例子：如何使用蓝图编辑器的合并请求功能进行数据分发](https://help.aliyun.com/zh/datav/datav-6-0/user-guide/how-do-i-merge-requests-to-distribute-data?spm=a2c4g.11186623.0.i19)
+
+# 预览并发布可视化应用
+
+1. 登录[DataV控制台](https://datav.aliyun.com/)。
+
+2. 在**我的可视化**页面中，选择已创建的可视化应用，单击**编辑**。
+
+3. 单击画布编辑器右上角的**预览**图标，预览可视化应用。
+   ![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/8250593761/p551123.png)
+
+   预览成功后，可按照以下步骤发布可视化应用。
+
+4. 单击画布编辑器右上角的**发布**图标。
+   ![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/8449922061/p9452.png)
+
+5. 在**发布**对话框中单击**发布大屏**。
+
+6. 单击**分享链接**右侧的**复制**图标。
+ ![image](https://help-static-aliyun-doc.aliyuncs.com/assets/img/zh-CN/5325446061/p9453.png)
+
+7. 打开浏览器，将复制的链接粘贴到地址栏中，即可在线观看发布成功的可视化应用。
+
+
+---
+
+# 插件测试
+
+> 来源: https://ldi123.tk/MyNet/pages/c685ad/
+> 日期: 2022-02-10 17:03:25
+
+# Boxx
+
+## 使用
+
+- 引入：只需在你想要插入的地方加入 `<Boxx/>` 即可（如上）
+- 内容：默认随机展示名人名句，支持自定义
+- 样式：有三种样式，默认为 tip 样式，支持自定义
+
+## 自定义标题和内容
+
+- 如果默认的名人名句不满足需求的话，自定义只需指定两个属性`title`和`content`的值
+
+| Name    | Type   | Description             |
+| ------- | ------ | ----------------------- |
+| title   | String | 要展示的`title`的内容   |
+| content | String | 要展示的`content`的内容 |
+
+## 自定义样式
+
+- 指定三个属性值实现
+
+| Name         | Type   | Description                            |
+| ------------ | ------ | -------------------------------------- |
+| blockStyle   | Object | 整体块元素的样式                       |
+| titleStyle   | Object | 只针对`title`的样式                    |
+| contentStyle | Object | 只针对`content`的样式                  |
+| changeTime   | Number | 以毫秒值为单位的动态变化时间，顶部为例 |
+
+需要注意的是：属性值传输的对象只能通过`v-bind:`绑定的方式来实现
+
+<marquee>
+<Boxx :blockStyle="blockStyle"  />
+<Boxx type="warning" :blockStyle="titleStyle" :titleStyle="titleStyle" changeTime="1000" title="我是一个大大的且变化的 title"/>
+<Boxx type="danger" :blockStyle="contentStyle" :contentStyle="contentStyle" content="我是一个小小的<br><marquee>content</marquee>"/>
+</marquee>
+
+<script>
+	export default {
+		data() {
+			return {
+				blockStyle: {'background':'#eee','color':'red'},
+                titleStyle: {'margin-right': '10%','font-size':'16px'},
+                contentStyle: {'margin-right': '20%','font-size':'10px',
+                               "margin-top": "1rem","margin-bottom": "0.4rem"},
+			}
+		}
+	}
+</script>
+
+
+---
+
+# 博客搭建
+
+> 来源: https://ldi123.tk/MyNet/pages/075c25/
+> 日期: 2021-12-05 23:56:02
+
+# 博客搭建
+
+## test
+
+
+---
+
+# Mybatis-Plus
+
+> 来源: https://ldi123.tk/MyNet/pages/ce176b/
+> 日期: 2021-12-05 23:52:06
+
+##### QueryWrapper中常用方法，用法大全
+
+![20181001202710403](https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/博客插图/20181001202710403.5u5p0izf9j80.webp)
+
+
+---
+
+# 踩坑记
+
+> 来源: https://ldi123.tk/MyNet/pages/1ae063/
+> 日期: 2022-02-16 22:51:22
+
+<Boxx/>
+
+今天在新建一个Spring Boot 项目时，遇到了一个奇怪的问题
+
+![image](https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/博客插图/image.6sjvo5797h00.webp)
+
+起初我还以为Swagger配置不对，改了好久，改到自闭和怀疑人生！
+
+后来又仔细检查了Spring Boot配置和依赖，都没问题啊，为啥老是访问不了呢
+
+无奈只能上百度找解决办法，找了好久都是没用的办法
+
+最后想到改个端口试试，哎，这下好了
+
+当场吐血
+
+然后立马百度了一下`6666`端口，哦哦，原来是这个端口不让用啊
+
+其他不让用的端口如下：
+
+![image](https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/博客插图/image.32vcpkx31oy0.webp)
+
+太坑了，以后记得避开
+
+  [参考链接](https://blog.csdn.net/qq_35080796/article/details/105273384)
+
+
+---
+
+# 感想
+
+> 来源: https://ldi123.tk/MyNet/pages/52380f/
+> 日期: 2022-02-04 00:05:20
+
+人生没有白走的路<br>
+
+每一步都算数<br>
+
+ <Badge text="2022/02/04 00:08:50" />
+
+
+---
+
+# 娱乐
+
+> 来源: https://ldi123.tk/MyNet/pages/89aa05/
+> 日期: 2022-01-28 12:43:17
+
+#### 2022年1月28日 金钱豹
+
+![inforec-20220126-5f1179077a3b1fc7b9201d5a6cb8ca63](https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/2022素材/inforec-20220126-5f1179077a3b1fc7b9201d5a6cb8ca63.1gc4hvedmgu8.gif)
+
+接着金钱豹的变种也出现了，可萌可帅可天真可绿茶。也是，谁能拒绝一只可爱又有钱的豹豹呢
+
+![image](https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/2022素材/image.6mmlu9srbe80.png)
+
+#### 2022年2月22日 最2的日子
+
+
+---
+
+# 容器
+
+> 来源: https://ldi123.tk/MyNet/pages/945e0d/
+> 日期: 2022-01-15 16:25:39
+
+### 现代诗
+（收集了自己比较喜欢的现代诗）
+
+  顾城 **《避免》**
+
+>你不愿意种花 <p>
+>你说：  <p>
+>“我不愿看见它 一点点凋落”  <p>
+>是的  <p>
+>为了避免结束  <p>
+>您避免了一切开始 <p>
+
+你
+
+一会看我
+
+一会看云
+
+我觉得
+
+你看我时很远
+
+你看云时很近
+
+顾城《远和近》
+
+  海子 **《面朝大海，春暖花开》**
+
+>从明天起，做一个幸福的人
+>
+>　　喂马，劈柴，周游世界
+>
+>　　从明天起，关心粮食和蔬菜
+>
+>　　我有一所房子，面朝大海，春暖花开
+>
+>　　从明天起，和每一个亲人通信
+>
+>　　告诉他们我的幸福，那幸福的闪电告诉我的
+>
+>　　我将告诉每一个人
+>
+>　　给每一条河每一座山取一个温暖的名字
+>
+>　　陌生人，我也为你祝福
+>
+>　　愿你有一个灿烂的前程
+>
+>　　愿你有情人终成眷属
+>
+>　　愿你在尘世获的幸福
+>
+>　　我只愿面朝大海，春暖花开
+
+[![](https://img.shields.io/badge/作者-ldi-orange)](https://ldi123.tk)
+
+
+---
+
+# 投资理财
+
+> 来源: https://ldi123.tk/MyNet/pages/0dbdb0/
+> 日期: 2022-01-04 18:31:15
+
+- #### 关于理财
+
+  - 任何投资本质上都是低位买入，高位卖出，但现实中，做投资并不纯粹。除了要面对市场的涨涨跌跌，还有各种场外的降维打击。比如要买房，要结婚，生病了要用钱，逼着你赎回。所以要用闲钱投资。
+  - 3-5年不用的闲钱才能买基金，不代表一定要3-5年才能赚钱，也不代表短期就不能退出
+  - 闲钱投资，是为了在各种意外情况时，能从容应对，保证投资最终能够赚钱
+  - 近期要用的钱，不要买基金
+  - 预留充足的备用金
+  - 有足够的保险来应对意外
+  - 最后还剩下的钱，才是能够用于长期投资的闲钱。
+
+- #### 必须消费 可选消费 
+
+  - 必需消费，是维持日常生活的消费。吃吃喝喝、衣食住行，包括各种洗漱用品等等，都算是必需消费。必需消费的单价都不高，属于日常消耗品。通常来说，必需消费可以一次性大量买入，这样会划算一些，也就是说我们可以在节假日促销的时候通过量上的积累，来降低必需品的支出。
+  - 可选消费，是用来提高生活质量的。例如汽车、化妆品、最新款的手机、最新款的电脑，花费非常大的出境旅游等等，都属于可选消费。这些可选消费，有了它们，可以让我们更好的享受生活。但是如果经济能力达不到，没有它们，我们也可以继续生活、继续过日子。很多时候，可选消费都是可以降级消费的。
+  - 可选消费的特点是，很容易找到降级的替代方案。就好比手表，上到几十万的名表，下到几十元的普通表，都是有的，都能满足看时间的基本需求。根据自己的实际经济能力选择合适的消费品。
+
+- #### 购买基金的注意事项
+
+  1、要注意根据自己的风险承受能力和投资目的安排基金品种的比例。挑选最适合自己的基金，购买偏股型基金要设置投资上限。
+
+  2、要注意别买错“基金”。基金火爆引得一些伪劣产品“浑水摸鱼”，要注意鉴别。
+
+  3、要注意对自己的账户进行后期养护。基金虽然省心，但也不可扔着不管。经常关注基金网站新公告，以便更加全面及时地了解自己持有的基金。
+
+  4、要注意买基金别太在乎基金净值。其实基金的收益高低只与净值增长率有关。只要基金净值增长率保持领先，其收益就自然会高。
+
+  5、要注意不要“喜新厌旧”，不要盲目追捧新基金，新基金虽有价格优惠等先天优势，但老基金有长期运作的经验和较为合理的仓位，更值得关注与投资。
+
+  6、要注意不要片面追买分红基金。基金分红是对投资者前期收益的返还，尽量把分红方式改成“红利再投”更为合理。
+
+  7、要注意不以短期涨跌论英雄。以短期涨跌判断基金优劣显然不科学，对基金还是要多方面综合评估长期考察。
+
+  8、要注意灵活选择稳定省心的定投和实惠简便的红利转投等投资策略。
+  
+  
+  
+- #### 查理·芒格投资理论
+
+  ■ 风险一一所有投资评估应该从测量风险（尤其是信用的风险）开始。
+  - 测算合适的安全边际。
+  - 避免和道德品质有问题的人交易。
+  - 坚持为预定的风险要求合适的补偿。
+  - 永远记住通货膨张和利率的风险。
+  - 避免犯下大错；避免资本金持续亏损。
+
+  ■ 耐心——克制人类天生爱行动的偏好。
+
+  - “复利是世界第八大奇迹”（爱因斯坦），不到必要的时候，别去打断它。
+
+  - 避免多余的交易税和摩擦成本，永远别为了行动而行动。
+
+  - 幸运来临时要保持头脑清醒。
+
+  - 享受结果，也享受过程，因为你活在过程当中。
+
+  ■ 决心——当合适的时机出现时，要坚决地采取行动。
+
+  - 当别人贪婪时，要害怕；当别人害怕时，要贪婪。
+  -  机会来临的次数不多，所以当它来临时，抓住它。
+  -  机会只眷顾有准备的人：投资就是这样的游戏。
+
+  ■ 我们偏向于把大量的钱投放在我们不用再另外作决策的地方。如果你因为一样东西的价值被低估而购买了它，那么当它的价格上涨到你预期的水平时，你就必须考虑把它卖掉。那很难。但是，如果你能购买几个伟大的公司，那么你就可以安坐下来啦。那是很好的事情。
+
+
+---
+
+# 友情链接
+
+> 来源: https://ldi123.tk/MyNet/pages/2f2b3d/
+> 日期: 2021-12-06 00:43:42
+
+```yaml
+- name: 麋鹿鲁哟
+  desc: 大道至简，知易行难
+  avatar: https://cdn.jsdelivr.net/gh/xugaoyi/image_store/blog/20200122153807.jpg # 可选
+  link: https://www.cnblogs.com/miluluyo/ # 可选
+  bgColor: '#CBEAFA' # 可选，默认var(--bodyBg)。颜色值有#号时请添加单引号
+  textColor: '#6854A1' # 可选，默认var(--textColor)
+- name: XAOXUU
+  desc: '#IOS #Volantis主题作者'
+  avatar: https://cdn.jsdelivr.net/gh/xaoxuu/assets@master/avatar/avatar.png
+  link: https://xaoxuu.com
+  bgColor: '#B9D59C'
+  textColor: '#3B551F'
+- name: lookroot的个人空间
+  desc: 寻求理想和显示的平衡
+  avatar: https://www.lookroot.cn/logo.png
+  link: https://www.lookroot.cn/
+  bgColor: '#B7DBFF'
+  textColor: '#294D71'
+- name: 平凡的你我
+  desc: 理想成为大牛的<br/>小陈同学
+  avatar: https://reinness.com/static/avatar.png
+  link: https://reinness.com
+  bgColor: '#FFE5B4'
+  textColor: '#A05F2C'
+- name: znote
+  desc: 荷尽已无擎雨盖，<br/>菊残犹有傲霜枝。
+  avatar: https://zpj80231.gitee.io/znote/vuepress/head-fish.jpg
+  link: https://zpj80231.gitee.io/znote/
+  bgColor: '#FCE5BF'
+  textColor: '#7B2532'
+- name: 全栈软件开发直通车
+  desc: 全栈软件开发技术博客，<br/>从小白到大神!
+  avatar: https://gitee.com/wangshibiao/blog_picBed2/raw/master/images/20200806151030.png
+  link: https://sofineday.com
+  bgColor: '#FBEBEC'
+  textColor: '#603420'
+- name: 易良同学的博客
+  desc: 正在努力！
+  avatar: https://yiliang.site/assets/images/avatar.jpeg
+  link: https://yiliang.site
+  bgColor: '#FFEFE2'
+  textColor: '#A05F2C'
+- name: 永远的救赎者
+  desc: 知者减半，省者全无。
+  avatar: https://i.loli.net/2020/08/10/PkQMGL6pATW1vBg.jpg
+  link: http://www.yuanchengcheng.vip/
+  bgColor: '#FBEBEC'
+  textColor: '#603420'
+- name: 辰旭博客
+  desc: 凤鸣初阳，百鸟朝凰
+  avatar: https://s1.ax1x.com/2020/08/09/aoLTDx.png
+  link: https://kareny.cn
+  bgColor: '#FFCEDE'
+  textColor: '#621529'
+- name: JokerM's Palace
+  desc: Take your heart
+  avatar: https://cdn.jokerm.com/?/imgcdn/logo.png
+  link: https://jokerm.com/
+- name: Saul.J.Wu
+  desc: 立身之本，不在高低。
+  avatar: https://raw.githubusercontent.com/SaulJWu/images/main/20201114225611.jpg
+  link: https://sauljwu.github.io/
+- name: 杨庭培的博客
+  desc: 太平世界，环球同此凉热。
+  avatar: https://www.ytpblog.com/img/my-logo.png
+  link: https://www.ytpblog.com/
+- name: Lake's blog
+  desc: 不积跬步，无以至千里；不积小流，无以成江海。
+  avatar: https://cdn.jsdelivr.net/gh/taixingyiji/image_store@main/blog/logo/img.png
+  link: https://taixingyiji.com/
+- name: Cubik的小站 # 昵称
+  desc: RECOMMENDED BY DR.CREATIVE # 介绍
+  avatar: https://cdn.jsdelivr.net/gh/Cubik65536/cubik-favicons@main/CubikLogo.png # 头像
+  link: https://www.cubik65536.top/  # 链接
+- name: x·π
+  desc: 为开发者量身制作的技术博客和知识库管理平台。
+  avatar: https://cdn.jsdelivr.net/gh/Ezuy-Lee/RainzeDrawingBed/media/logo.png
+  link: https://ezuy-lee.github.io/xpai/
+- name: 眼里有光
+  desc: 道阻且长，行则将至
+  avatar: https://icooloop.gitee.io/img/logo.jpg
+  link: https://icooloop.gitee.io/
+- name: Heo
+  desc: 爱折腾的设计师
+  link: https://blog.zhheo.com/
+  avatar: https://blog.zhheo.com/img/avatar.png
+- name: Chuyuxuan
+  desc: 临渊羡鱼，不如退而结网
+  link: https://blog.chuyuxuan.top/
+  avatar: http://blog.chuyuxuan.top/img/avatar1.jpg
+- name: 全栈杂货站
+  desc: 千里万里杂货站里，天青色等烟雨，而我在等你。
+  avatar: http://cdn.tea-culture.top/tech/images/avatar/3.jpg
+  link: http://tech.tea-culture.top/
+- name: 小鱼博客
+  desc: 总是半途而废的废柴
+  avatar: https://cdn.jsdelivr.net/gh/xiaoyu-666/image_store/blog/minion.png
+  link: https://xiaoyu-666.github.io/
+- name: 大胡子
+  desc: 记录你我，分享精彩。
+  avatar: https://photo.jakehu.cn/favicon.png
+  link: https://www.jakehu.cn
+- name: 嘟先生学WebGL
+  desc: 流水不争先，争的是滔滔不绝。
+  avatar: https://joy1412.cn/img/dudu.jpeg
+  link: https://joy1412.cn
+# - name: 嶋屿麋鹿
+#   desc: 小鹿的知识库
+#   avatar: https://www.fongloo.com/img/EB-logo.png
+#   link: https://www.fongloo.com/
+- name: '@小右_'
+  desc: 学而不厌 不耻下问
+  avatar: https://lordblog.cn/upload/2021/05/logo%20(4)-742f1f7e15db44a1b3140035104ea239.png
+  link: https://lordblog.cn/
+- name: 途中的树
+  desc: 走出自己的傲慢，承认自己的局限。
+  avatar: https://zkpeace.com/blog/img/avatar.jpg
+  link: https://zkpeace.com/
+- name: Haobo's Blog
+  link: https://discover304.top/
+  avatar: https://discover304.top/img/head.png
+  desc: 半只脚跨入炼丹师的大门的新人
+- name: 小胖墩er
+  desc: 迟到总比不到的好，所以好好加油吧。
+  avatar: https://cdn.jsdelivr.net/gh/Chubby-Duner/image-hosting@master/blog/logo.jpeg
+  link: https://chubbyduner.top
+```
+
+格式：(点击代码块右上角一键复制)
+
+```yaml
+- name: xxx # 昵称
+  desc: xxxxx # 介绍
+  avatar: https://xxx # 头像
+  link: https://xx  # 链接
+```
+
+
+---
+
+# 技巧
+
+> 来源: https://ldi123.tk/MyNet/pages/686283/
+> 日期: 2021-12-06 00:43:42
+
+# 实用技巧
+
+### 技巧模块创建成功！
+
+
+---
+
+# 心情
+
+> 来源: https://ldi123.tk/MyNet/pages/516fb5/
+> 日期: 2021-12-06 00:07:46
+
+# 心情
+
+### 下午好！
+
+
+---
+
+# 生活
+
+> 来源: https://ldi123.tk/MyNet/pages/e6661d/
+> 日期: 2021-12-06 00:06:45
+
+# 生活
+
+### 生活模块创建成功！
+晚安！
+太难了！呜呜
+
+
+---
+
+# 学习
+
+> 来源: https://ldi123.tk/MyNet/pages/0ce1f5/
+> 日期: 2021-12-06 00:05:41
+
+# 学习
+
+### 学习模块创建成功！
+
+
+---
+
+# 关于
+
+> 来源: https://ldi123.tk/MyNet/pages/a35c2a/
+> 日期: 2021-12-06 00:43:42
+
+## 📚Blog
+这是一个兼具博客文章、知识管理、文档查找的个人网站！
+
+文章内容仅是我个人的小总结，资历尚浅，如有误还请指正。
+
+## :email: 联系
+
+- WeChat or QQ: <a :href="qqUrl" class='qq'>2694494031</a>
+- Email:  <a href="mailto:2694494031@qq.com">2694494031@qq.com</a>
+- GitHub: <https://github.com/ldi123>
+
+<script>
+  export default {
+    data(){
+      return {
+        qqUrl: 'tencent://message/?uin=2694494031&Site=&Menu=yes'
+      }
+    },
+    mounted(){
+      const flag =  navigator.userAgent.match(/(phone|pad|pod|iPhone|iPod|ios|iPad|Android|Mobile|BlackBerry|IEMobile|MQQBrowser|JUC|Fennec|wOSBrowser|BrowserNG|WebOS|Symbian|Windows Phone)/i);
+      if(flag){
+        this.qqUrl = 'mqqwpa://im/chat?chat_type=wpa&uin=2694494031&version=1&src_type=web&web_src=oicqzone.com'
+      }
+    }
+  }
+</script>
+
+
+---
+
+# 资源分享合集
+
+> 来源: https://ldi123.tk/MyNet/pages/4ff624/
+> 日期: 2023-07-17 22:20:45
+
+# 资源分享合集
+
+PandaOCR
+多功能OCR图文识别+翻译+朗读+弹窗+公式+表格+图床+搜图+二维码
+<br><br>[https://github.com/miaomiaosoft/PandaOCR](https://github.com/miaomiaosoft/PandaOCR)
+<br><br>[https://gitee.com/DDDDDGOOO/PandaOCR](https://gitee.com/DDDDDGOOO/PandaOCR)
+PandaOCR.Pro 【PRO版】
+
+多功能多引擎OCR图文识别、翻译、朗读、游戏机翻汉化工具
+<br><br>[https://github.com/miaomiaosoft/PandaOCR.Pro](https://github.com/miaomiaosoft/PandaOCR.Pro)
+<br>[https://gitee.com/DDDDDGOOO/PandaOCR.Pro](https://gitee.com/DDDDDGOOO/PandaOCR.Pro)
+更多翻译工具:
+<br>[https://www.yuque.com/eureka007/ziyuan/zx3udb](https://www.yuque.com/eureka007/ziyuan/zx3udb)
+
+API版OCR接口申请教程
+<br>[https://support.qq.com/products/322047/faqs-more](https://support.qq.com/products/322047/faqs-more)
+
+Keyda键盘音效 
+
+- 找对打字的感觉，让打字/写作更专注
+  <br>[https://github.com/miaomiaosoft/Keyda](https://github.com/miaomiaosoft/Keyda)
+  百度网盘：<br>[https://pan.baidu.com/s/1HP8ui0c2kPxKxEaptUrbcw](https://pan.baidu.com/s/1HP8ui0c2kPxKxEaptUrbcw) 提取码: 35gg
+
+TaskbarX FOR WIN7
+-任务栏显示系统占用/温度/网络速率/IP延迟/今日天气/实时热点
+<br>[https://github.com/miaomiaosoft/TaskbarX](https://github.com/miaomiaosoft/TaskbarX)
+百度云盘: <br>[https://pan.baidu.com/s/1Fjh8h0hEsPUcPa5tpJtaSg](https://pan.baidu.com/s/1Fjh8h0hEsPUcPa5tpJtaSg) 提取码: javf
+
+FocusWindowX
+聚焦活动窗口，弱化背景窗口，工作娱乐更专注
+程序下载（包括解码包和示例视频文件）：
+<br>[https://pan.baidu.com/s/1obkxKkl-etMsM9GgILdM1w](https://pan.baidu.com/s/1obkxKkl-etMsM9GgILdM1w) 提取码: 4nqy
+演示视频：<br>[https://www.bilibili.com/video/BV1qV411o7AX/](https://www.bilibili.com/video/BV1qV411o7AX/)
+
+【以上所有软件均来源如下：】
+<br>[https://github.com/miaomiaosoft](https://github.com/miaomiaosoft)
+<br>[https://gitee.com/DDDDDGOOO](https://gitee.com/DDDDDGOOO)
+
+📒最新百度文库下载可用方法
+<br>[https://www.yuque.com/eureka007/ziyuan/hi3i5c](https://www.yuque.com/eureka007/ziyuan/hi3i5c)
+📓道客巴巴下载
+<br>[https://www.yuque.com/eureka007/ziyuan/ukqaqo](https://www.yuque.com/eureka007/ziyuan/ukqaqo)
+📘豆丁/爱问/得力/360doc文库
+<br>[https://www.yuque.com/eureka007/ziyuan/yqg3f6](https://www.yuque.com/eureka007/ziyuan/yqg3f6)
+
+🎈[超过5000多个分类井条有序的好用实用网站 html 书签](https://www.aliyundrive.com/s/7ahndAZ3i1X) 
+
+[🎈如何判断树莓派4B是Rev1.1版还是1.2版](https://andyx.net/raspberry_pi_4_rev_1_2_fixes_usb-c_power_issues_improves_sd_card_resilience/)
+
+021全年各种资源分享书签合集
+收集了2021全年在微信群分享过的所有网址，整理并分类好书签，直接导入浏览器即可。
+<br>[https://wwi.lanzoul.com/i1yDBy6ogte](https://wwi.lanzoul.com/i1yDBy6ogte)
+<br>[https://pan.baidu.com/s/1FAGmRoP7Theen8VbtboJSg](https://pan.baidu.com/s/1FAGmRoP7Theen8VbtboJSg) 提取码：d9bc 
+
+【 几个常用的短链接 】
+
+- 第一类只有缩短链接的功能：
+
+  1. [http://dlj.li](http://dlj.li)
+  2. [http://do2.ltd](http://do2.ltd)
+  3. [http://bib0.com](http://bib0.com)
+  4. [http://urlify.cn](http://urlify.cn)
+
+- 第二类新增了批量缩短链接的功能：
+
+  1. [http://aad.tw](http://aad.tw)
+  2. [http://suo.im](http://suo.im) 同时支持多个短链域名
+
+- 第三类新增了还原短链接的功能：
+
+  1. [http://sina.lt](http://sina.lt) 同时支持匿名短链接，即不会显示网址来源
+  2. [http://5dov.cn](http://5dov.cn)
+
+- 第四类新增了自定义短链接，此功能针对用户的品牌网站等进行自定义设置，大多数情况下此功能需要登录使用，这里介绍无需登录即可使用的：
+
+  1. [http://is.gd](http://is.gd)
+  2. [http://gg.gg](http://gg.gg)
+  3. [http://bit.ly](http://bit.ly)
+
+阿里云盘webDAV+infuse 体验超棒的云盘媒体库！！
+<br>[https://www.bilibili.com/video/BV1Jq4y1y7Xb?share_source=copy_web](https://www.bilibili.com/video/BV1Jq4y1y7Xb?share_source=copy_web)
+GitHub： <br>[https://github.com/messense/aliyundrive-webdav](https://github.com/messense/aliyundrive-webdav)
+
+猜字游戏- 汉字
+<br>[https://handle.antfu.me/](https://handle.antfu.me/)
+成语Wordle
+<br>[https://cheeaun.github.io/chengyu-wordle/](https://cheeaun.github.io/chengyu-wordle/)
+<br>[https://github.com/cheeaun/chengyu-wordle](https://github.com/cheeaun/chengyu-wordle)
+
+图片压缩工具
+
+1. Upscaler是一个免费的基于人工智能的工具，可以在短短几秒钟内自动缩放图像。可以将图像 “拉伸” 2倍或4倍而不降低其质量。
+   使用该工具只需上传或拖动图片，选择您想要的大小即可。所有这些都是完全免费的。支持的格式：.png, .jpeg, .jpg, .webp。
+   <br>[https://www.upscale.media/](https://www.upscale.media/)
+2. 开源图片压缩客户端
+   开源压缩工具客户端，支持Linux，Windows和MacOS
+   <br>[https://github.com/meowtec/Imagine](https://github.com/meowtec/Imagine)
+3. Google开源的图片压缩网站/客户端
+   在线：<br>[https://squoosh.app/](https://squoosh.app/)
+   客户端：<br>[https://squoosh-desktop.vercel.app/](https://squoosh-desktop.vercel.app/)
+4. 简单易用的图片压缩软件
+   <br>[https://tuya.xinxiao.tech/](https://tuya.xinxiao.tech/)
+
+小众软件精选
+微博共享黑名单，评论区一键拉黑插件
+<br>[https://meta.appinn.net/t/topic/29626](https://meta.appinn.net/t/topic/29626)
+【自荐】一款短语收集、分类管理和快速输入到光标处的软件
+<br>[https://meta.appinn.net/t/topic/28158](https://meta.appinn.net/t/topic/28158)
+BookmarkHub-浏览器书签同步插件
+<br>[https://meta.appinn.net/t/topic/24572](https://meta.appinn.net/t/topic/24572)
+
+[安卓] PDF工具箱
+适用于Android设备的轻量级且非常全面的Pdf工具。 非常容易使用多种方式来修改和创建Pdf
+<br>https://wwa.lanzoui.com/b04azn4he 提取码：35rk
+
+剪辑App合集
+<br>https://lanzoui.com/b04akxcyj 提取码：e10j
+
+背景去除器抠图
+<br>https://wwa.lanzoui.com/b04bv13de 提取码：9n9y
+<br>https://pan.baidu.com/s/1ybIbkj3je9qYfcH4d5s8pQ#9jkr 密码：9jkr
+
+OCR合集
+<br>[https://www.123pan.com/s/b6cA-PA4pA](https://www.123pan.com/s/b6cA-PA4pA)
+<br>https://pan.baidu.com/s/1pysVUNk0yTxHhQhbzfR9uQ 提取码：0k7k
+
+漫画/动漫App合集
+（官方版 + 去广告版）
+<br>https://wwx.lanzoui.com/b04b0nxna 提取码：4uv4
+
+樊登读书会“知识超市32套课程”
+（音频视频版）全面上线,助你补足最后一块知识拼图
+<br>[https://www.aliyundrive.com/s/oxXUsxYdtKe](https://www.aliyundrive.com/s/oxXUsxYdtKe)
+
+😊[【建议收藏！】最全公开课知识库](https://docs.qq.com/sheet/DRU5MWHZCTHFGQnhM?tab=qb1sze)
+
+🍦[小纸条](https://ali.gitcafe.ink/)
+
+📬 临时邮箱
+注册时不想泄露自己邮箱时可用
+<br>[https://mail.td/zh](https://mail.td/zh)
+<br>[https://mail.tm/zh/](https://mail.tm/zh/)
+<br>[https://spambox.xyz/](https://spambox.xyz/)
+<br>[https://maildrop.cc/](https://maildrop.cc/)
+<br>[https://www.mohmal.com/zh](https://www.mohmal.com/zh)
+[http://24mail.chacuo.net/](http://24mail.chacuo.net/)
+<br>[https://www.nowmymail.com/](https://www.nowmymail.com/)
+<br>[https://www.crazymailing.com/login](https://www.crazymailing.com/login)
+<br>[https://10minutemail.com/](https://10minutemail.com/)
+[http://www.mytrashmail.com/](http://www.mytrashmail.com/)
+<br>[https://www.clipmails.com/](https://www.clipmails.com/)
+<br>[https://tempmail.altmails.com/](https://tempmail.altmails.com/)
+<br>[https://mailpoof.com/zh](https://mailpoof.com/zh)
+<br>[https://www.gmailnator.com/](https://www.gmailnator.com/)
+<br>[https://www.disposablemail.com/](https://www.disposablemail.com/)
+<br>[https://www.mohmal.com/zh](https://www.mohmal.com/zh)
+<br>[https://www.emailondeck.com/](https://www.emailondeck.com/)
+[http://www.tempinbox.com/](http://www.tempinbox.com/)
+<br>[https://www.guerrillamail.com/](https://www.guerrillamail.com/)
+<br>[https://dropmail.me/zh/](https://dropmail.me/zh/)
+<br>[https://www.moakt.com/](https://www.moakt.com/)
+<br>[https://mailsac.com/](https://mailsac.com/)
+<br>[https://www.nowmymail.com/](https://www.nowmymail.com/)
+<br>[https://www.guerrillamail.com/zh/](https://www.guerrillamail.com/zh/)
+<br>[https://www.linshi-email.com/](https://www.linshi-email.com/)
+<br>[https://www.snapmail.cc/#/](https://www.snapmail.cc/#/)
+<br>[https://mail.mjj.edu.ge/](https://mail.mjj.edu.ge/)
+<br>[https://www.20minutemail.com/#top](https://www.20minutemail.com/#top)
+http://24mail.chacuo.net/enus 
+<br>[https://www.8164.cc/#/emailList/all](https://www.8164.cc/#/emailList/all)
+[http://mailnesia.com/](http://mailnesia.com/)
+<br>[https://ihotmails.com/](https://ihotmails.com/)
+<br>[https://temp-mail.io/zh](https://temp-mail.io/zh)
+
+🍇 用 Fruition + Notion 搭建个人网站
+DEMO: <br>https://fruitionsite.com/
+GitHub: <br>https://github.com/stephenou/fruitionsite
+作者主页： <br>https://stephenou.com/
+教程：<br>https://the-block.club/Fruition-Notion-e05ddf4392744a8a819a30ac7952520b
+
+🎁在线电影网站，排名不分先后
+网站列表
+4K屋：http://www.kkkkwu.com
+4K鸭：<br>https://yanetflix.com
+8号影院：http://www.8hyyw.com
+91看剧：<br>https://91kanju.com
+AGE动漫：<br>https://www.agefans.cc
+km影视：<br>https://www.mkvdo.com
+Libvio：<br>https://www.libvio.com
+No影视：<br>https://www.novipnoad.com
+V6电影版：<br>https://www.66s.cc
+片吧影院：<br>https://www.pianba.net
+外剧网：<br>https://www.waiju.cc/index.html
+全能影视：http://www.qnvod.net
+在线之家：<br>https://www.zxzj.me
+低端影视：<br>https://ddys.tv
+完美看看：<br>https://www.wanmeikk.me
+奈飞星影视：<br>https://nfxhd.com
+奈菲影视：<br>https://www.nfmovies.com
+妮可动漫：http://www.nicotv.me/dongman
+泥巴影院：<br>https://www.mudvod.tv
+阿房影视：<br>https://bwl87.com
+南瓜电影：http://www.nangua55.com
+看看屋：<br>https://www.kankanwu.com
+美剧天堂：<br>https://www.aimeijutt.com
+美剧网：<br>https://mjw21.com
+唐人街影院：<br>https://www.tangrenjie.tv
+喝茶影视：http://aaqqs.com
+爱看美剧：<br>https://www.akmeiju.com
+爱美剧：<br>https://agmov.com
+爱迪影视：http://aidi.tv
+极品影视：<br>https://www.jpysvip.net
+电影先生：http://www.dianyingim.com
+哔嘀影视：<br>https://www.mp4er.com
+影视饭TV：<br>https://www.ysftv.com
+韩迷TV：<br>https://www.hmtv.me
+CCTV：http://tv.cctv.com/live/m/
+牛视网在线免费网络电视直播平台：<br>https://www.chaojidianshi.net/
+
+☕spider-flow一个无需写代码的爬虫平台
+<br>[https://www.spiderflow.org/](https://www.spiderflow.org/)
+<br>[https://github.com/ssssssss-team/spider-flow](https://github.com/ssssssss-team/spider-flow)
+
+👀浏览器插件下载合集
+所有插件都可直接下载，国内无法使用chrome应用商店的可以使用这些网站下载插件。
+
+1. https://www.gugeapps.net/
+2. https://www.extfans.com/
+3. https://huajiakeji.com/
+4. https://www.cnplugins.com/
+5. https://www.crx4chrome.com/
+6. https://fnd.io/#/
+7. https://chrome.zzzmh.cn/#/index
+8. https://www.chromefk.com/
+9. https://www.yuque.com/eureka007
+10. https://crxdl.com/
+11. http://blandlifedev.blogspot.com/
+12. https://marketplace.visualstudio.com/
+13. https://www.chajian5.com/
+14. https://173app.com/chrome-ext
+
+😎最好用的开源问卷调查系统、表单系统。Open Source Survey System
+<br>[https://github.com/wkeyuan/DWSurvey](https://github.com/wkeyuan/DWSurvey)
+
+🎨【 阅后即焚工具汇总 】
+<br>[https://privnote.org/](https://privnote.org/)
+<br>[https://privnote.com/](https://privnote.com/)
+评价：最早用的就是这款，privnote.com是小众软件上推荐的，这应该更早出来，很多年了，用法都一样。
+
+<br>[https://scrt.link/](https://scrt.link/)
+评价，这个网站支持你的一次性密文被读取后通知你，免费注册用户通过邮箱通知，收费注册用户通过SMS通知
+
+<br>[https://1ty.me/](https://1ty.me/)
+界面比较简洁
+
+<br>[https://onetimesecret.com/](https://onetimesecret.com/)
+能够选择过期时间，支持api
+
+<br>[https://safenote.co/private-message](https://safenote.co/private-message)
+推荐，支持阅读次数的设置，同时支持api
+
+<br>[https://revealit.me/](https://revealit.me/)
+<br>[https://temp.pm/](https://temp.pm/)
+这两个比较简洁，打开即用
+
+<br>[https://snote.io/](https://snote.io/)
+界面简洁，设置很多，而且域名好记
+
+<br>[https://www.burnafterreading.me/](https://www.burnafterreading.me/)
+阅后即焚，域名正宗，30天后自动销毁，支持标题
+
+🎈2021全年各种资源分享书签合集
+收集了2021全年在微信群分享过的所有网址，整理并分类好书签，直接导入浏览器即可。
+<br>[https://wwi.lanzoul.com/i1yDBy6ogte](https://wwi.lanzoul.com/i1yDBy6ogte)
+<br>https://pan.baidu.com/s/1FAGmRoP7Theen8VbtboJSg 提取码：d9bc
+
+🎄动漫网站
+<br>[https://acg.rip/](https://acg.rip/)
+<br>[https://bangumi.moe/](https://bangumi.moe/)
+<br>[https://dmhy.anoneko.com/](https://dmhy.anoneko.com/)
+<br>[https://nyaa.si/](https://nyaa.si/)
+<br>[https://share.acgnx.se/](https://share.acgnx.se/)
+<br>[https://dmly.me/](https://dmly.me/)
+<br>[https://mikanani.me/](https://mikanani.me/)
+<br>[https://sukebei.nyaa.si/](https://sukebei.nyaa.si/)
+[http://www.comicat.org/](http://www.comicat.org/)
+[http://www.hysub.net/](http://www.hysub.net/)
+[http://www.miobt.com/](http://www.miobt.com/)
+<br>[https://nc.raws.dev/0:/](https://nc.raws.dev/0:/)
+<br>[https://gogoanime.film/](https://gogoanime.film/)
+
+✨[WinFR 界面版 - 微软免费文件删除数据恢复工具这下能好用到“吊打”付费了！](https://www.iplaysoft.com/winfr-gui.html) 
+
+🧨用中文浏览国外社交媒体里的热门讨论。
+<br>[https://www.buzzing.cc/](https://www.buzzing.cc/)
+
+🍦图片压缩工具
+
+1. Upscaler是一个免费的基于人工智能的工具，可以在短短几秒钟内自动缩放图像。可以将图像 “拉伸” 2倍或4倍而不降低其质量。
+   使用该工具只需上传或拖动图片，选择您想要的大小即可。所有这些都是完全免费的。支持的格式：.png, .jpeg, .jpg, .webp。
+   <br>https://www.upscale.media/
+2. 开源图片压缩客户端
+   开源压缩工具客户端，支持Linux，Windows和MacOS
+   <br>https://github.com/meowtec/Imagine
+3. Google开源的图片压缩网站/客户端
+   在线：<br>https://squoosh.app/
+   客户端：<br>https://squoosh-desktop.vercel.app/
+4. 简单易用的图片压缩软件
+   <br>https://tuya.xinxiao.tech/
+
+磁力搜索网站：🉑️搜索🉑️上传
+ 老王磁力：<br>https://laowangfi.xyz/
+ 无极磁链：<br>https://0cili.com/
+
+临时文件传输网站：免注册 🙅‍♀️
+<br>[https://wetransfer.com/](https://wetransfer.com/)
+<br>[https://cp.ciding.cc](https://cp.ciding.cc)
+
+• 软件破解网站：提供Mac软件👨🏻‍💻
+ MacWk：<br>https://macwk.com/
+ Digit77: <br>https://www.digit77.com/
+
+• 一个测速网站：在线测速📈
+<br>[https://speed.cloudflare.com/](https://speed.cloudflare.com/)
+
+• 无名小站：原名片库🎥
+<br>[https://www.btnull.re/](https://www.btnull.re/)
+
+• 各种资源搜索教程💥
+<br>[https://www.yuque.com/eureka007/ziyuan](https://www.yuque.com/eureka007/ziyuan)
+
+👍[Java 全栈知识体系](https://pdai.tech/)
+
+☕[提问的智慧](https://github.com/ryanhanwu/How-To-Ask-Questions-The-Smart-Way/blob/main/README-zh_CN.md)
+
+🍱[177本名著浓缩成了177句话](https://zhuanlan.zhihu.com/p/412002966)
+
+#### 任何试图更改生物钟的行为，都将给身体留下莫名其妙的疾病20、30年之后再后悔，已经来不及了！
+
+一、晚上9-11点为免疫系统（淋巴）排毒时间，此段时间应安静或听音乐 。 
+
+二、晚间11-凌晨1点，肝的排毒，需在熟睡中进行。 
+
+三、凌晨1-3点，胆的排毒，亦同。 
+
+四、凌晨3-5点，肺的排毒。此即为何咳嗽的人在这段时间咳得最剧烈，因排毒动作已走到肺；不应用止咳药，以免抑制废积物的排除。 
+
+五、凌晨5-7点，大肠的排毒，应上厕所排便。 
+
+六、凌晨7-9点，小肠大量吸收营养的时段，应吃早餐。疗病者最好早吃，在６点半前，养生者在７点半前，不吃早餐者应改变习惯，即使拖到９、10点吃都比不吃好。 
+七、半夜至凌晨4点为脊椎造血时段，必须熟睡，不宜熬夜！！
+
+一、心脏有问题时
+        1。呼吸会不顺畅，胸口会闷也会刺痛，刺痛的时间是短暂的，一发作几秒钟就过了，最多一分钟。
+        2。严重了会从前胸痛到后背膏肓肩胛的地方，十天半个月会来一次，三、五个月发作一次，时间越短越严重。
+        3。心脏不好会牵扯到左边手臂酸、麻、痛，因为我们心脏的神经与左手臂的神经是同一条，所以左边的心脏有问题会牵扯到左手臂。
+        4。心脏也会牵扯到颈部僵硬、转动不灵活，早上起床脖子经常扭到；因为心脏有问题，颈动脉会狭窄，血液供应不顺畅，旁边的筋失血自然僵硬。
+        5。心脏有问题，火毒(心火)就会上升，火毒慢慢上升到了额头停留在这里，不可能从额头跑出来，停留时间久了，这里就会长烂疮，很多人会头昏，到达这里会经过两个面颊，经过眼睛，所以心脏有问题，两个面颊会泛红。
+        6。另外，火毒到了顶就会往下降，从额头顺着两个眉陵骨绕着太阳穴穿过我们的后脑，延着颈部进入咽喉，进入肠子，从肛门出去；所以火毒降下来，两个眉陵骨就会酸痛；有的朋友机能亢进，慢慢眼睛压力会大，眼睛会往前暴出来，即所谓的"凸眼症"。
+        7。火毒降下来，顺着两个太阳穴，太阳穴在两侧就叫"偏头"，血管就会扩张，一扩张就刺激到旁边的神经，痛的受不了。
+        8。慢慢的火毒会从后脑下来，这就开始发胀，感觉怪怪的，接着穿到颈部，颈部停留过久，淋巴就会肿大；
+              慢慢进入咽喉，咽喉就容易发炎，经常会感觉有东西哽在里面，吞又吞不下去，吐又吐不出来。
+              再来火毒会进入肠子，肠子会燥进，越来越热，温度太高水份会来缓和，水份来的多来的快，肠子里的粪便就会烂掉，我们就会拉肚子；水份来的不足，粪便就会干燥，排不出来。
+        9。心脏有问题会造成我们的脾胃受伤，脾胃一受伤，消化吸收的能力就降低，吃进来的食物不能消化，最后会胃胀，那些东西会反冲回头，叫做"胃酸"。
+       10。心脏有问题，养份不能输送，总觉得体力不够，想吃多点来补充，过多的食物会带来大量的糖份，排除糖份都靠肝脏、肾脏，过多的糖份会导致肝、肾衰竭，很容易得"糖尿病"。
+       11。心脏有问题，人的神经就会衰退，一点事情就会紧张，就会受到惊吓，晚上睡觉不易入睡，睡着以后就做恶梦，恶梦会延续，所谓的"恶梦连连"。
+
+二、肝脏有问题时——尤其得了肝炎，以下的4个现象不可以有任何一个现象经常性的发作
+       1。右上腹闷痛。
+       2。右后腰酸痛。
+       3。右肩感觉酸、麻、痛，甚至造成右手举不起来。
+       4。小腿晚上睡觉时容易抽筋。
+
+肝脏出现问题时我们的身体会产生的现象会有：
+        1。肝脏像拳头一样，有正面，有背面正面如果硬化、肿大，会挤到我们的肋间神经，肋间神经就会胀痛；如果在背后，会造成右腰酸痛
+        2。肝脏不好，晚上睡眠品质会不好，翻来覆去不容易睡着；起床后口干、口苦、口臭，刷牙时牙龈会流血。平常为食物没有兴趣，不吃不饿，吃一点点就有饱感；走路走个两步小腿就会很酸，会感觉全身越来越疲劳，手脚也是越来越没有力。
+        3。肝脏不好的人，脚会经常扭到，扭到了又好不了；不小心割伤了，伤口也不容易愈合。
+        4。喜欢喝酒的朋友，忽然酒量减少了。或是有久治不愈的皮肤病，周而复始好不了，都要注意肝。
+
+三、当肾脏出现问题时——我们的身体会产生的现象会有：
+        1。肾脏有两条通路，从脚底的涌泉上来，走到脚后根内侧，再顺着腿的内侧往上走。
+        第一条 从后方上来走到腰与膀胱结合，再顺着脊椎两侧往上走当我们肾脏不好，气会不足，血就上不来；
+                     因此腰会酸，背会痛，再往上到颈部，颈部会觉得僵硬；
+                     到了后脑勺会感觉昏胀不舒服，到了头顶会觉闷胀，过了头顶往下到两个眉心之间的"精明穴"，气不到会觉两眼干涩。       
+        第二条 从前面上来，经过大腿跟我们的生殖器及肝脏结合，最后延着身体两侧到胸前与肺脏结合。
+                     肾脏有问题，大腿两侧会酸、软、无力，经常发痒。
+                     无法把气送到胸口与肺脏结合，我们的呼吸就慢慢不顺畅，久了以后里面的气管就会自然闭锁，一闭锁空气就不易进来，人就会感觉到窒息，必须"干咳"来减缓它。
+         2。气不足不能与膀胱结合，造成膀胱中括约肌的细胞就容易代谢死亡而造成松弛，排尿状况不好，频尿，久了以后细胞慢慢坏死，最后就尿失禁。
+         3。看东西的瞳孔部份叫做"视觉"，就是由肾脏直接控制，肾有问题，不能将肾水送达到眼睛，眼会觉得干、酸、涩、慢慢视觉就会模糊，严重会出现黑影，叫做"飞蚊症"，久了以后压力会越来越大，造成"青光眼"。
+         4。早上起床，脚后跟会不舒服因为，人在休息时，血液是在肝，肾脏会暂时缺血，起床须把血液送至全身，由于肾脏不好，气太弱，血液来的太慢，关节失血自然就会僵硬，活动一下，血液循环到了关节才会轻松。
+         5。人活着就会讲话，讲话耗元气，本身肾脏不好气太弱，再把气耗掉就会不想说话，因工作不能不说话时，声音就会出不来，就会沙哑。
+         6。想要深呼吸总是觉得气不够，自然呼吸就会快，呼吸一短促，鼻腔就会缺血，鼻腔的黏膜因为缺血，抵抗力就会减低，空气中的尘蹒就会破坏它，破坏了当然就会敏感，天气潮湿、变化，承受不了就会发作，称为"过敏性鼻炎
+         7。男性朋友的摄护腺，妇女的卵巢、子宫都间接、直接跟肾脏有关，因此，肾脏有了问题，到了一定的年龄，摄护腺就会肥大；妇女因肾脏不好，卵巢、子宫就会虚弱、寒冷，虚寒就没有力量将每个月应该排出的经血排掉，排不干净都还滞留在子宫里，每个月经血都要出来，不能完全排掉都停留在子宫里，久了难免造成血块堆积，形成肿瘤，称为"子宫肌瘤"。
+         8。每个月经血出不来，在里面来回撞击，子宫的内膜会受不了这些经血会受不了这些经血在里面的推挤，就会变形、异位，称为"子宫内膜异位"；慢慢的内分泌就会混乱，过多的分泌物，赤白带就会形成。
+         9。时间久了，肾脏越来越不好，气越来越弱，手脚就会开始冰凉，尤其到了冬天特别冰冷。慢慢久了，坐也不是，站也不是，走也不是，肯定会造成神经受伤，晚上睡觉不好入睡，好不容易睡着了，一点点声音就会被吵醒，纵使睡着了，整夜都在作梦，有睡跟没睡一样，天天都很累。
+
+ 
+
+四、脾胃出现问题时——我们的身体会产生的现象会有：
+        1。肩膀疼痛可能的症状：右肩经常痛时"肝脏"有问题。左肩酸痛时"心脏"与"胃"有问题。两肩同时感觉不舒服，脖子经常觉得僵硬时，肯定是"消化器官"出了问题。
+         2。偏头痛：你常感觉太阳穴的两边有疼痛的现象，虽然长期求诊。吃药还是无效，你可能同时还伴有便秘。排便困难或腹泻及胃肠胀气等现象。这只要治好消化器官的毛病，自然可治好困扰多时的偏头痛。
+         3。一般人都以为"便秘"及"腹泻"是两件分开的事，可是有些人会有便秘及拉肚子同时交替出现的现象，平时常觉得食欲减退。腹部胀气。胸部有压迫感或心悸。呼吸困难及失眠等现象，而且感觉自己的体力一天天减弱。肌肉消瘦，又查不出原因，有以上现象，你可能已罹患"慢性肠炎"，不赶快处理可能会造成致命的腹膜炎
+         4。小肠与淋巴系统：不明原因的疼痛经常困扰我们，若你的咽喉没有发炎，但经常不舒服或疼痛，脖子两侧也经常胀痛，肩膀与手臂外侧也会有不舒服与胀痛，但查不出原因，经过推拿。按摩也只能站时纾解，此现象请多注意"小肠"与"淋巴系统"已亮起红灯。
+         5。大肠：当你经常觉得口干。口苦，想要多喝水，而且容易鼻塞。流鼻涕；平时没有蛀牙，但牙齿会痛。脖子两侧会胀大些。不舒服。无法提重的东西，以上在告诉我们"大肠"已亮起红灯。
+
+DALL·E
+<br>[https://openai.com/dall-e-2/](https://openai.com/dall-e-2/)
+Imagen: Text-to-Image Diffusion Models
+<br>[https://imagen.research.google/](https://imagen.research.google/)
+NUWA-Infinity
+<br>[https://nuwa-infinity.microsoft.com](https://nuwa-infinity.microsoft.com)
+Log in | StabilityAI
+<br>[https://stabilityai.us.auth0.com](https://stabilityai.us.auth0.com)
+Stability.Ai
+<br>[https://stability.ai/blog/stable-diffusion-public-release?continueFlag=707adb537436231458302f4b5e702dae](https://stability.ai/blog/stable-diffusion-public-release?continueFlag=707adb537436231458302f4b5e702dae)
+文心一格 - AI艺术和创意辅助平台
+<br>[https://yige.baidu.com/](https://yige.baidu.com/)
+Midjourney
+<br>[https://www.midjourney.com/home/](https://www.midjourney.com/home/)
+6pen Art
+<br>[https://6pen.art/](https://6pen.art/)
+Tiamat内测🤩
+<br>[https://tiamat-ai.feishu.cn/share/base/shrcn2uXL8wNiveykIFYqWSzsPf](https://tiamat-ai.feishu.cn/share/base/shrcn2uXL8wNiveykIFYqWSzsPf)
+NovelAI
+<br>[https://ai.nya.la/login](https://ai.nya.la/login)
+🤖 🖼 AI Art Generator, AI Art Maker - NightCafe Creator
+<br>[https://creator.nightcafe.studio/?code=UNITEAI](https://creator.nightcafe.studio/?code=UNITEAI)
+Deep Dream Generator
+<br>[https://deepdreamgenerator.com/](https://deepdreamgenerator.com/)
+Artbreeder
+<br>[https://www.artbreeder.com/](https://www.artbreeder.com/)
+GAN Art
+<br>[https://ganart-io.web.app/](https://ganart-io.web.app/)
+AI Image Generator API | DeepAI
+<br>[https://deepai.org/machine-learning-model/text2img](https://deepai.org/machine-learning-model/text2img)
+starryai
+<br>[https://www.starryai.com/](https://www.starryai.com/)
+Photo Editor: Fotor
+<br>[https://www.fotor.com/](https://www.fotor.com/)
+Runway
+<br>[https://runwayml.com/](https://runwayml.com/)
+Dream by WOMBO
+<br>[https://www.wombo.art/](https://www.wombo.art/)
+
+使用介绍，自行百度or谷歌搜索关键词
+Via.微信公众号 AETUTS  与 元气壁纸APP
+
+📚目前 #Zlibrary 可访问镜像网站
+
+<br>[https://1lib.ink/](https://1lib.ink/)
+<br>[https://zlib.ren/](https://zlib.ren/)
+<br>[https://1lib.ren/](https://1lib.ren/)
+<br>[https://zlib.ink/](https://zlib.ink/)
+<br>https://en.booksee.org/ 需国际网络
+<br>https://libcats.org/ 需国际网络
+<br>https://www.bookzz.ren/ 需国际网络
+<br>https://www.ooopn.com/tool/zlibrary/ 镜像集合
+http://pilimi.org/ 
+Pirate Library Mirror 镜像了 z-lib 今年8月份的全部图书，约24TB
+
+📙其他书籍网站
+<br>[https://eureka.mba/posts/81cc5063.html](https://eureka.mba/posts/81cc5063.html)
+
+☕GitHub精选
+「中国制霸生成器」中国三十四省份制霸标记工具
+<br>[https://github.com/itorr/china-ex](https://github.com/itorr/china-ex)
+很简单的用 Rust 打包网页生成很小的 Mac App
+<br>[https://github.com/tw93/Pake](https://github.com/tw93/Pake)
+收集整理 GitHub 上高质量、有趣的开源项目
+<br>[https://github.com/Wechat-ggGitHub/Awesome-GitHub-Repo](https://github.com/Wechat-ggGitHub/Awesome-GitHub-Repo)
+深度学习在图像处理中的应用教程
+<br>[https://github.com/WZMIAOMIAO/deep-learning-for-image-processing](https://github.com/WZMIAOMIAO/deep-learning-for-image-processing)
+
+程序员延寿指南
+<br>[https://github.com/geekan/HowToLiveLonger](https://github.com/geekan/HowToLiveLonger)
+”深蓝词库转换“ 一款开源免费的输入法词库转换程序
+<br>[https://github.com/studyzy/imewlconverter](https://github.com/studyzy/imewlconverter)
+一些非常有趣的python爬虫例子，对新手比较友好
+<br>[https://github.com/shengqiangzhang/examples-of-web-crawlers](https://github.com/shengqiangzhang/examples-of-web-crawlers)
+iOS App去广告
+<br>[https://github.com/app2smile/rules](https://github.com/app2smile/rules)
+
+switch游戏下载:<br>https://(x520.com/
+switch游戏下载：<br>https://www.vgter.com/ （PS4/PC）
+switch模拟器：<br>https://yuzu-emu.org/
+switch模拟器：<br>https://ryujinx.org/
+塞尔达模拟器：<br>https://cemu.info/
+
+抖音TikTok无水印下载iOS快捷指令
+<br>[https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97](https://www.icloud.com/shortcuts/331073aca78345cf9ab4f73b6a457f97)
+
+[PC]有声小说下载
+<br>[https://gitee.com/xu-wanbin1/test/releases](https://gitee.com/xu-wanbin1/test/releases)
+
+💦知乎盐选文章分享网站
+我不是盐神
+<br>[https://onehu.xyz/](https://onehu.xyz/)
+免费盐选
+<br>[https://mfyx.top/](https://mfyx.top/)
+知乎盐选库·语雀分库
+<br>https://www.yuque.com/books/share/1976a821-6902-455c-9ae0-7a4f435bdd5c 
+密码：uhpl
+
+🎞高清影视资源在线免费观看
+
+⚠PS：此类第三方影视网站均含有各类广告，切勿点击观看，谨防上当受骗！！！
+🔺打开方式：请复制到浏览器打开，不要微信里直接打开
+
+<br>[https://www.reboku.cc/](https://www.reboku.cc/)
+<br>[https://www.555kyy.com/](https://www.555kyy.com/)
+<br>[https://ddys2.me/](https://ddys2.me/)
+<br>[https://www.scfun.net/](https://www.scfun.net/)
+[http://dy.zixiwo.com/](http://dy.zixiwo.com/)
+<br>[https://www.lgyy.cc/](https://www.lgyy.cc/)
+<br>[https://cupfox.app/](https://cupfox.app/)
+<br>[https://www.freeok.vip/](https://www.freeok.vip/)
+<br>[https://gaze.run/](https://gaze.run/)
+<br>[https://www.libvio.me/](https://www.libvio.me/)
+[http://vip.8kvod.com:888/](http://vip.8kvod.com:888/)
+<br>[https://yanetflix.com/](https://yanetflix.com/)
+[http://549.tv/](http://549.tv/)
+<br>[https://ymck.me/](https://ymck.me/)
+<br>[https://dsxys.com/](https://dsxys.com/)
+<br>[https://a.huiye.icu/](https://a.huiye.icu/)
+
+🍔python深度学习验证码识别全集
+<br>[https://www.aliyundrive.com/s/eNiyU9SA1Hq](https://www.aliyundrive.com/s/eNiyU9SA1Hq)
+
+极客-Node.js 开发实战
+带你开发一个完整的 Node.js 项目
+<br>[https://www.aliyundrive.com/s/f151Xbo4CxJ](https://www.aliyundrive.com/s/f151Xbo4CxJ)
+
+秒传链接提取
+用于提取和生成百度网盘秒传链接
+<br>[https://greasyfork.org/zh-CN/scripts/424574-秒传链接提取](https://greasyfork.org/zh-CN/scripts/424574-秒传链接提取)
+
+玩转职场10000招
+<br>[https://www.aliyundrive.com/s/NSogexE39Lr](https://www.aliyundrive.com/s/NSogexE39Lr)
+
+🥐【 做设计专用 】
+1、Adobe 出品的在线配色工具：
+<br>[https://color.adobe.com/zh/create](https://color.adobe.com/zh/create)
+2、资源超丰富的色板网站 
+<br>[https://material.colorion.co/](https://material.colorion.co/)
+3、调色板集合网站
+<br>[https://colorhunt.co/](https://colorhunt.co/)
+4、专业的配色工具大全
+<br>[https://www.58pic.com/peisebiao/](https://www.58pic.com/peisebiao/)
+5、绝美渐变配色分享网站 
+<br>[https://uigradients.com/](https://uigradients.com/)
+6、提供柔和的渐变配色方案
+<br>[https://webgradients.com/](https://webgradients.com/)
+7、Color Space 是款功能强大的渐变色在线生成器，支持单色、双色，甚至三色渐变
+<br>[https://mycolor.space/](https://mycolor.space/)
+8、个性化色彩搭配网站 
+<br>[https://www.palettable.io/C0C0C0](https://www.palettable.io/C0C0C0)
+9、一个可以自由建立调色盘的网站 
+<br>[https://color.hailpixel.com/](https://color.hailpixel.com/)
+10、这个网站收集了世界各地设计师的配色方案
+被称为「设计师和插画家的选色器」
+<br>[https://colorsupplyyy.com/](https://colorsupplyyy.com/)
+
+🐛【虫部落】书签合集 更新至2022-11-26
+解锁一大波涨姿势的小众网站，总有你未曾涉足的新大陆
+<br>[https://www.chongbuluo.com/thread-7961-33-1.html](https://www.chongbuluo.com/thread-7961-33-1.html)
+帖子中各位虫友分享的网址，整理成一个书签，方便大家导入，并且做了归类
+下载：<br>https://wwf.lanzoul.com/i944r0gzudyj
+
+📝笔记软件评测全收集
+<br>[https://leon21.notion.site/02f5e85d06674d988ae5072f49f29863](https://leon21.notion.site/02f5e85d06674d988ae5072f49f29863)
+
+知电晓春哥：路由器天梯图
+<br>[https://m.toutiao.com/is/r7dCLcn/](https://m.toutiao.com/is/r7dCLcn/)
+
+🖼一款博客文章封面图生成工具
+简介 <br>https://cloud.tencent.com/developer/article/1609008
+网站 <br>https://nav.rdonly.com/laboratory/bgimage/backimage.html
+
+🌈渐变色配色网站推荐
+背景 按钮 banner header logo都适合的渐变色
+<br>[https://webkul.github.io/coolhue/](https://webkul.github.io/coolhue/)
+<br>[https://uigradients.com](https://uigradients.com)
+<br>[https://gradient.shapefactory.co/](https://gradient.shapefactory.co/)
+<br>[https://gradienthunt.com/popular](https://gradienthunt.com/popular)
+<br>[https://www.grabient.com/](https://www.grabient.com/)
+<br>[https://cssgradient.io/](https://cssgradient.io/)
+<br>[https://bennettfeely.com/scales/](https://bennettfeely.com/scales/)
+<br>[https://mycolor.space/](https://mycolor.space/)
+<br>[https://webgradients.com/](https://webgradients.com/)
+<br>[https://colours.neilorangepeel.com/](https://colours.neilorangepeel.com/)
+<br>[https://color.hailpixel.com/](https://color.hailpixel.com/)
+<br>[https://encycolorpedia.cn/](https://encycolorpedia.cn/)
+<br>[https://coolbackgrounds.io/](https://coolbackgrounds.io/)
+<br>[https://duotones.co/](https://duotones.co/)
+<br>[https://products.ls.graphics/mesh-gradients/](https://products.ls.graphics/mesh-gradients/)
+<br>[https://gradienta.io/](https://gradienta.io/)
+<br>[https://www.eggradients.com/](https://www.eggradients.com/)
+<br>[https://webkul.github.io/coolhue/sketch-plugin/](https://webkul.github.io/coolhue/sketch-plugin/)
+<br>[https://gradientbuttons.colorion.co/](https://gradientbuttons.colorion.co/)
+<br>[https://webgradients.com/](https://webgradients.com/)
+<br>[https://gradihunt.com/](https://gradihunt.com/)
+<br>[https://color.uisdc.com/gradient.html](https://color.uisdc.com/gradient.html)
+<br>[https://peiseka.com/jianbianse.html](https://peiseka.com/jianbianse.html)
+
+推荐优质、有意义、有趣、坚持维护的安全开源项目
+<br>[https://github.com/knownsec/404StarLink](https://github.com/knownsec/404StarLink)
+
+✨【软件】图片去水印
+
+1. 水印管家 Apowersoft Watermark Remover
+2. Inpaint9 免激活单文件版
+3. HitPaw Watermark Remover 1.4.2.0
+4. Lama Cleaner 开源的图像修复工具
+   链接：<br>https://pan.baidu.com/s/1gKRIqmFaTMeLHOQpvapjvQ?pwd=xhwv 
+   提取码：xhwv 
+
+【在线】图片去水印
+<br>[https://theinpaint.com/](https://theinpaint.com/)
+<br>[https://magicstudio.com/magiceraser](https://magicstudio.com/magiceraser)
+<br>[https://www.watermarkremover.io/](https://www.watermarkremover.io/)
+<br>[https://huggingface.co/spaces/Sanster/Lama-Cleaner-lama](https://huggingface.co/spaces/Sanster/Lama-Cleaner-lama)
+<br>[https://quququ.cn/](https://quququ.cn/)
+<br>[https://remover.zmo.ai/](https://remover.zmo.ai/)
+<br>[https://www.apowersoft.cn/image-watermark-remover](https://www.apowersoft.cn/image-watermark-remover)
+
+百战2022版web前端全套
+链接：<br>https://pan.baidu.com/s/1U3FPq6cg_EbZxSyHf922lQ
+密码：djuc
+
+Python全套-Excel+MYSQL+Power BI+统计原理+python爬虫+机器学习+数据挖掘 
+链接：<br>https://pan.baidu.com/s/1bF0zUXjMzoQOIIBIBBsm6w 
+密码：w5g0
+
+桌面显卡性能天梯图
+<br>[https://www.mydrivers.com/zhuanti/tianti/gpu/index.html](https://www.mydrivers.com/zhuanti/tianti/gpu/index.html)
+
+一个公益性书站，无需登录即可搜书下载、在线阅读和推书到kindle。
+静读天下、kybook3等阅读软件还可通过OPDS连接到书站
+<br>[https://m.readhub.one/](https://m.readhub.one/)
+<br>[https://pan.readhub.one/](https://pan.readhub.one/)
+
+寒冷的新冠流行季，这些家庭备药与照护方法帮你度过
+<br>[https://sspai.com/post/77155](https://sspai.com/post/77155)
+
+🏫GitHub上大学课程资源
+
+❤中国科学技术大学课程资源
+<br>[https://ustc-resource.github.io/USTC-Course/](https://ustc-resource.github.io/USTC-Course/)
+<br>[https://github.com/USTC-Resource/USTC-Course](https://github.com/USTC-Resource/USTC-Course)
+浙江大学课程攻略共享计划
+<br>[https://qsctech.github.io/zju-icicles/](https://qsctech.github.io/zju-icicles/)
+<br>[https://github.com/QSCTech/zju-icicles](https://github.com/QSCTech/zju-icicles)
+广东工业大学计算机学院课程攻略 
+<br>[https://brenner8023.github.io/gdut-course/](https://brenner8023.github.io/gdut-course/)
+<br>[https://github.com/brenner8023/gdut-course](https://github.com/brenner8023/gdut-course)
+郑州大学课程资料共享计划
+<br>[https://github.com/CooperNiu/ZZU-Courses-Resource](https://github.com/CooperNiu/ZZU-Courses-Resource)
+南京大学课程复习资料
+<br>[https://nju.today/](https://nju.today/)
+<br>[https://www.yuque.com/nju_today/gm8kgc](https://www.yuque.com/nju_today/gm8kgc)
+<br>[https://github.com/idealclover/NJU-Review-Materials](https://github.com/idealclover/NJU-Review-Materials)
+收集整理SYSU期末考试卷子、资料
+<br>[https://github.com/sysuexam/SYSU-Exam](https://github.com/sysuexam/SYSU-Exam)
+清华大学计算机系课程攻略
+<br>[https://rekcarc-tsc-uht.readthedocs.io/en/latest/](https://rekcarc-tsc-uht.readthedocs.io/en/latest/)
+<br>[https://github.com/PKUanonym/REKCARC-TSC-UHT](https://github.com/PKUanonym/REKCARC-TSC-UHT)
+温州大学《机器学习》课程资料（代码、课件等）
+<br>[https://github.com/fengdu78/WZU-machine-learning-course](https://github.com/fengdu78/WZU-machine-learning-course)
+华中科技大学 计算机科学与技术学院 学习资料💯 以及 实验资料💾
+<br>[https://github.com/AlexFanw/HUSTER-CS](https://github.com/AlexFanw/HUSTER-CS)
+北京大学课程资料整理
+<br>[https://lib-pku.github.io/](https://lib-pku.github.io/)
+<br>[https://github.com/lib-pku/libpku](https://github.com/lib-pku/libpku)
+中国科学院大学2019-2020课程（秋季，春季，夏季）
+<br>[https://github.com/HuangCongQing/UCAS_Course_2019](https://github.com/HuangCongQing/UCAS_Course_2019)
+台湾大学李宏毅老师机器学习
+<br>[https://github.com/dafish-ai/NTU-Machine-learning](https://github.com/dafish-ai/NTU-Machine-learning)
+山东大学软件学院学习资料共享
+<br>[https://github.com/zhouying20/sdu-sc-resources](https://github.com/zhouying20/sdu-sc-resources)
+美国大学备考资料
+<br>[https://github.com/F4bwDP6a6W/FLY_US](https://github.com/F4bwDP6a6W/FLY_US)
+人教版小学到大学数学PDF
+<br>[https://github.com/TapXWorld/Math](https://github.com/TapXWorld/Math)
+上海交通大学 XeLaTeX 学位论文及课程论文模板
+<br>[https://github.com/sjtug/SJTUThesis](https://github.com/sjtug/SJTUThesis)
+南京大学学位论文XeLaTeX模板
+<br>[https://github.com/Haixing-Hu/nju-thesis](https://github.com/Haixing-Hu/nju-thesis)
+南京大学学位论文模板
+<br>[https://github.com/nju-lug/NJUThesis](https://github.com/nju-lug/NJUThesis)
+
+把txt文本转成epub和mobi电子书的命令行工具(原TmdTextEpub)
+<br>[https://github.com/ystyle/kaf-cli](https://github.com/ystyle/kaf-cli)
+
+微信助手（非web微信版）：定时发送信息；群发信息；自动回复
+<br>[https://github.com/LTEnjoy/easyChat](https://github.com/LTEnjoy/easyChat)
+
+一个专门收录AI工具的网站,每日更新
+<br>[https://www.futurepedia.io/](https://www.futurepedia.io/)
+
+菲菲更名宝贝 之 得意非凡
+一款免费优秀的批量更名软件和批量文件处理工具
+[http://www.ffhome.com/works/1406.html](http://www.ffhome.com/works/1406.html)
+
+学小易1.6.4
+从小学到大学，教材齐全，可以给们万全的做题素材！随时都能题、听课的高效学习方式，能帮助们快速提升绩！作方便，不限年龄！解锁无限搜索!
+<br>[https://wwpj.lanzoul.com/iKrOX0j2jdva](https://wwpj.lanzoul.com/iKrOX0j2jdva)
+
+可可翻译-浏览器翻译插件
+项目：<br>https://github.com/chunibyocola/sc-translator-crx
+更多：<br>https://eureka.mba/posts/c7f8ec10.html#浏览器翻译插件
+
+一个可以修改硬盘图标的软件
+<br>[https://github.com/Xizo-114514/DiskIconChangerByXizo](https://github.com/Xizo-114514/DiskIconChangerByXizo)
+在线便利贴工具
+<br>[https://teachermemopad.netlify.app/](https://teachermemopad.netlify.app/)
+
+🏳‍🌈icon图标网站
+<br>[https://fonts.google.com/icons](https://fonts.google.com/icons)
+<br>[https://tablericons.com](https://tablericons.com)
+<br>[https://simpleicons.org](https://simpleicons.org)
+<br>[https://boxicons.com](https://boxicons.com)
+<br>[https://streamlinehq.com/icons](https://streamlinehq.com/icons)
+<br>[https://lucide.dev](https://lucide.dev)
+<br>[https://feathericons.com](https://feathericons.com)
+<br>[https://3dicons.co](https://3dicons.co)
+<br>[https://iconfinder.com](https://iconfinder.com)
+<br>[https://flaticon.com](https://flaticon.com)
+<br>[https://fontawesome.com](https://fontawesome.com)
+<br>[https://tabler-icons.io](https://tabler-icons.io)
+<br>[https://iconmonstr.com](https://iconmonstr.com)
+<br>[https://www.iconbolt.com/](https://www.iconbolt.com/)
+
+HTML / CSS 模板站点 🧵 ↓
+<br>[https://graygrids.com/](https://graygrids.com/)
+<br>[https://html5-templates.com/](https://html5-templates.com/)
+<br>[https://nicepage.com/](https://nicepage.com/)
+<br>[https://www.tooplate.com/](https://www.tooplate.com/)
+<br>[https://onepagelove.com/](https://onepagelove.com/)
+
+大厂项目复盘
+<br>[https://www.yuque.com/wikidesign/ykf0s9](https://www.yuque.com/wikidesign/ykf0s9)
+
+Talbica 3：元素周期表和化学反应数据库
+可切换风格样式
+免费下载生成图片
+<br>[https://www.talbica.com/](https://www.talbica.com/)
+
+CSS设计奖-最佳网页设计灵感
+<br>[https://www.cssdesignawards.com/](https://www.cssdesignawards.com/)
+
+用于强化学习的机器人库和模拟器的精选列表
+<br>[https://github.com/jslee02/awesome-robotics-libraries](https://github.com/jslee02/awesome-robotics-libraries)
+
+从 2023 年开始的用于音频生成的最新 AI 模型的时间表！
+<br>[https://github.com/archinetai/audio-ai-timeline](https://github.com/archinetai/audio-ai-timeline)
+
+分享一些有趣的知识网站
+<br>[https://waitbutwhy.com/](https://waitbutwhy.com/)
+【英文】推荐用此翻译工具👉链接
+<br>[https://immersive-translate.owenyoung.com/](https://immersive-translate.owenyoung.com/)
+
+配色/颜色查找网站
+<br>[https://coolors.co/](https://coolors.co/)
+<br>[https://colorhunt.co/](https://colorhunt.co/)
+<br>[https://gradienthunt.com/](https://gradienthunt.com/)
+<br>[https://www.grabient.com/](https://www.grabient.com/)
+[http://paletton.com/](http://paletton.com/)
+
+SynologyNAS群晖nas专家指南
+<br>[https://mariushosting.com/](https://mariushosting.com/)
+
+IOS屏蔽更新文件
+<br>[https://github.com/tageniu/iOS_profiles](https://github.com/tageniu/iOS_profiles)
+
+🤖AI工具：
+
+生成视频字幕
+<br>[https://github.com/openai/whisper](https://github.com/openai/whisper)
+AI编程助手
+<br>[https://www.aicodehelper.com/](https://www.aicodehelper.com/)
+AI在几秒钟内生成您的企业电子邮件
+<br>[https://github.com/shengxinjing/email-helper](https://github.com/shengxinjing/email-helper)
+AI自动做PPT
+<br>[https://beta.tome.app/](https://beta.tome.app/)
+AI辅助决策
+<br>[https://rationale.jina.ai/](https://rationale.jina.ai/)
+AI修复人像老照片
+<br>[https://www.restorephotos.io/](https://www.restorephotos.io/)
+一段文本是人类写的还是AI的
+<br>[https://openai.com/blog/new-ai-classifier-for-indicating-ai-written-text/](https://openai.com/blog/new-ai-classifier-for-indicating-ai-written-text/)
+AI生成摘要
+<br>[https://www.parabol.co/blog/332-ai-generated-summaries/](https://www.parabol.co/blog/332-ai-generated-summaries/)
+在您的个人计算机上离线转录和翻译音频。由 OpenAI 的 Whisper 提供支持。
+<br>[https://github.com/chidiwilliams/buz](https://github.com/chidiwilliams/buz)
+
+🍔致所有开发者,10个很棒的GitHub存储库
+
+1.Build your own X
+关于如何构建您自己的技术的教程的集合。介绍了命令行工具、操作系统、搜索引擎、3D 渲染器等
+<br>[https://github.com/codecrafters-io/build-your-own-x](https://github.com/codecrafters-io/build-your-own-x)
+
+2.Free Programming Books
+免费提供的编程书籍,多种语言的免费学习资源列表
+<br>[https://github.com/EbookFoundation/free-programming-books](https://github.com/EbookFoundation/free-programming-books)
+
+3.Oh My Zsh
+一个开源的、社区驱动的框架，用于管理您的 zsh 配置
+<br>[https://github.com/ohmyzsh/ohmyzsh](https://github.com/ohmyzsh/ohmyzsh)
+
+4.Coding Interview University
+编码面试大学,成为软件工程师的完整计算机科学研究计划
+<br>[https://github.com/jwasham/coding-interview-university](https://github.com/jwasham/coding-interview-university)
+
+5.Gitignore
+.gitignore模板集合
+<br>[https://github.com/github/gitignore](https://github.com/github/gitignore)
+
+6.System Design Primer
+系统设计入门,了解如何设计大型系统。准备系统设计面试。包括 Anki 抽认卡。
+<br>[https://github.com/donnemartin/system-design-primer](https://github.com/donnemartin/system-design-primer)
+
+7.Public APIs
+一个免费API列表，您可以将它们用于您的项目和应用程序。内容涵盖商业、动漫、动物、新闻、金融、游戏等各种主题
+<br>[https://github.com/public-apis/public-apis](https://github.com/public-apis/public-apis)
+
+8.The Art of Command Line
+命令行的艺术
+<br>[https://github.com/jlevy/the-art-of-command-line](https://github.com/jlevy/the-art-of-command-line)
+
+9.JavaScript Algorithms and Data Structures
+JavaScript算法与数据结构
+<br>[https://github.com/trekhleb/javascript-algorithms](https://github.com/trekhleb/javascript-algorithms)
+
+10.Developer Roadmap
+面向开发人员的社区驱动路线图、文章和资源
+<br>[https://github.com/kamranahmedse/developer-roadmap](https://github.com/kamranahmedse/developer-roadmap)
+
+人工智能初学者 - 课程
+<br>[https://microsoft.github.io/AI-For-Beginners/?id=artificial-intelligence-for-beginners-a-curriculum](https://microsoft.github.io/AI-For-Beginners/?id=artificial-intelligence-for-beginners-a-curriculum)
+
+从入门到直达就业前端工程师2022  
+链接：<br>https://pan.baidu.com/s/17T8c59bi7vVh85ilvekXmw 密码：g093
+
+BFE.dev
+600+前端面试问题，完全免费，还有可运行的编辑器，同时还有学生的讨论和参考答案
+<br>[https://bigfrontend.dev/](https://bigfrontend.dev/)
+
+VideoCat 抖音爬取工具 
+功能：爬取抖音 主页、喜欢、合集
+<br>[https://www.52pojie.cn/thread-1728830-1-1.html](https://www.52pojie.cn/thread-1728830-1-1.html)
+
+程序员海外工作/英文面试手册
+<br>[https://github.com/eliaszon/Programmers-Overseas-Job-Interview-Handbook](https://github.com/eliaszon/Programmers-Overseas-Job-Interview-Handbook)
+Android 的免费开源漫画阅读器
+<br>[https://github.com/KotatsuApp/Kotatsu](https://github.com/KotatsuApp/Kotatsu)
+动态壁纸,免费和开源软件，允许用户设置动画桌面墙纸和屏幕保护程序
+<br>[https://github.com/rocksdanister/lively#features](https://github.com/rocksdanister/lively#features)
+开源免费翻译工具
+<br>[https://github.com/crow-translate/crow-translate](https://github.com/crow-translate/crow-translate)
+
+网页小元素/组件
+免费开源，使用HTML和CSS写的UI元素
+<br>[https://uiverse.io/](https://uiverse.io/)
+
+1000+AI工具
+<br>[https://github.com/yousefebrahimi0/1000-AI-collection-tools](https://github.com/yousefebrahimi0/1000-AI-collection-tools)
+
+微信公众号文章下载器，用于下载微信公众号的所有文章
+<br>[https://www.52pojie.cn/thread-1651719-1-1.html](https://www.52pojie.cn/thread-1651719-1-1.html)
+
+丝滑运镜剪辑实战课程
+<br>[https://www.aliyundrive.com/s/mdyKC5s8NuU](https://www.aliyundrive.com/s/mdyKC5s8NuU)
+
+干货100个实用的视频剪辑方法
+<br>[https://www.aliyundrive.com/s/QAyrBw7TJ9Y](https://www.aliyundrive.com/s/QAyrBw7TJ9Y)
+
+图片编辑器，基于fabric.js和Vue,可自定义字体、素材、设计模板。
+<br>[https://github.com/nihaojob/vue-fabric-editor](https://github.com/nihaojob/vue-fabric-editor)
+哔哩哔哩的第三方应用
+<br>[https://github.com/Richasy/Bili.Uwp](https://github.com/Richasy/Bili.Uwp)
+可以自动给你的女朋友发晚安短信
+<br>[https://github.com/DIYgod/GoodNight](https://github.com/DIYgod/GoodNight)
+
+《Rust 程序设计语言》
+这是由Rust开发团队写的官方教程，权威不容置疑，想全面学习Rust的同学可以看看。今年刚出了第二版
+<br>[https://kaisery.github.io/trpl-zh-cn/](https://kaisery.github.io/trpl-zh-cn/)
+
+同步百度云网盘到阿里云教程 
+<br>[https://www.52pojie.cn/thread-1733362-1-1.html](https://www.52pojie.cn/thread-1733362-1-1.html)
+
+云段子-搞笑热评段子
+<br>[https://www.yduanzi.com](https://www.yduanzi.com)
+文案门 · 在我的文字里，总有你的故事
+<br>[https://www.wenanmen.com/](https://www.wenanmen.com/)
+彩虹屁生成器
+<br>[https://chp.shadiao.pro/](https://chp.shadiao.pro/)
+
+📕几个学习效率工具
+
+1.Forest 
+是一个帮助您放下手机，专注生活的App
+保持专注，拒当低头族
+<br>[https://www.forestapp.cc/](https://www.forestapp.cc/)
+
+2.Pocket(稍后阅读)
+将你要阅读或者一时没有读完的网页标记下来，接着同步到服务器端，然后就可以实行在不同的设备上阅读的功能
+<br>[https://getpocket.com/zh-cn/](https://getpocket.com/zh-cn/)
+
+3.浏览器插件：Toby
+管理标签Tab，效率提升工具
+<br>[https://www.gettoby.com/](https://www.gettoby.com/)
+
+4.Noisli
+在线白噪音工具
+<br>[https://www.noisli.com/](https://www.noisli.com/)
+<br>[https://rainyscope.com/](https://rainyscope.com/)
+<br>[https://defonic.com/](https://defonic.com/)
+
+5.Zotero
+开源免费的文献管理工具，可以方便的收集，组织，引用，和共享文献的工具
+<br>[https://www.zotero.org/](https://www.zotero.org/)
+
+JS.coach
+检索、整理GitHub项目中的React、node、js、Vue、Babel、Webpack、Angular、PostCSS等相关资源
+<br>[https://js.coach/](https://js.coach/)
+
+📚免费编程书籍
+
+1. Ebook Foundation
+   超过 3,000 本免费编程书籍和其他免费编程资源。
+   <br>https://ebookfoundation.github.io/free-programming-books/books/free-programming-books-subjects.html
+2. Goalkicker
+   大量 PDF 格式的编程笔记和书籍，可免费下载。
+   <br>https://goalkicker.com/
+3. Essential Programming Books
+   各种编程书籍，内容交叉链接，便于搜索
+   <br>https://programming-books.io/index-grid
+4. PDFDrive
+   关于软件、硬件、编程、网页设计等等的各种书籍。
+   <br>https://pdfdrive.com/category/5
+5. 更多相关
+   <br>https://eureka.mba/posts/81cc5063.html
+
+👍[文件快递柜](https://github.com/vastsa/FileCodeBox)
+
+AI工具导航
+
+1. https://www.igniter.ai/
+2. https://saasaitools.com/#tools
+3. https://www.futurepedia.io/
+4. https://gpt3demo.com/map
+5. https://www.ainav.cn/
+6. https://www.gongju.one/
+7. https://aigc.cn/
+8. https://17yongai.com/
+9. https://www.ainavpro.com/
+
+AI工具汇总
+
+1. https://dt4pe3snql.feishu.cn/sheets/shtcnoP1KO3ULuNdixoju9bWrCb
+2. https://ai-toolbox.codefuture.top/
+3. https://ignacio-velasquez.notion.site/120-AI-Resources-30379fa273a740aa9e263a405d0f80f1
+4. https://saasaitools.com/
+5. https://www.futuretools.io/
+6. https://docs.google.com/spreadsheets/d/1jmcdUFzwuZs3JnFQuoP9SfB3kGKm5HB-5TG8RIOVKYM/edit#gid=1778635312
+7. https://www.igniter.ai/
+8. https://www.vondy.com/
+9. https://vaulted-polonium-23c.notion.site/500-Best-AI-Tools-e954b36bf688404ababf74a13f98d126
+10. https://spectacular-party-fc2.notion.site/An-Ultimate-list-of-500-AI-tools-8f737bef33af49fc97336dc9c819c695
+11. https://theresanaiforthat.com/rip/
+12. https://rolls.bublup.com/
+13. https://allthingsai.com/
+14. https://doc.clickup.com/37465296/d/h/13qb6g-444/772e6048e852902
+15. https://theresanaiforthat.com/
+16. https://gpt3demo.com/map
+17. https://www.futurepedia.io/
+
+AI工具
+
+1. “解决人生烦恼”的AI回答
+   https://hotoke.ai/
+2. 一个用 ChatGPT 对 PDF、DOCX、TXT 文件提问的工具
+   https://ai.okmiku.com/
+3. 用于将 PDF 文件翻译成双语 PDF 文件
+   https://bilingualpdf.streamlit.app/
+
+个人电脑也能跑起来的 ChatGPT 模型，斯坦福 Alpaca 羊驼项目
+项目：<br>https://github.com/tatsu-lab/stanford_alpaca
+说明：<br>https://crfm.stanford.edu/2023/03/13/alpaca.html
+demo：<br>https://alpaca-ai.ngrok.io/
+
+ChatPaper，使用ChatGPT 总结arXiv 论文
+<br>[https://github.com/kaixindelele/ChatPaper](https://github.com/kaixindelele/ChatPaper)
+
+CSS 工具
+图表 <br>https://chartscss.org/
+按钮 <br>https://www.bestcssbuttongenerator.com/
+网格 http://grid.guide/
+图案 <br>https://css-doodle.com/
+组件 <br>https://css-challenges.com/
+
+AI工具合集
+【上图中】网站汇总 #AI
+📝AI文本
+ChatGPT：<br>https://chat.openai.com/
+NotionAI：<br>https://www.notion.so/product/ai
+A.I. Data Sidekick：AI工具编写 SQL、文档等的速度提高10倍
+<br>[https://www.airops.com/](https://www.airops.com/)
+Writesonic：人工智能写作辅助工具
+<br>[https://writesonic.com/](https://writesonic.com/)
+copy.ai：使用 AI 编写更好的营销文案和内容
+<br>[https://www.copy.ai/](https://www.copy.ai/)
+Character.AI：AI人工交互
+<br>[https://beta.character.ai/](https://beta.character.ai/)
+Fireflies：该工具可插入 Zoom、Teams 或 Webex 等流行的视频会议工具，并自动执行做笔记和创建转录的过程
+<br>[https://fireflies.ai/](https://fireflies.ai/)
+Jasper： AI文案写作工具
+<br>[https://www.jasper.ai/](https://www.jasper.ai/)
+Outplay：<br>https://outplayhq.com/
+CoWriter：AI辅助写作
+<br>[https://cowriter.org/login](https://cowriter.org/login)
+
+🎨AI绘画
+Midjourney：AI绘画神器
+网站：<br>https://www.midjourney.com/
+教程：<br>https://www.uisdc.com/midjourney
+PhotoRoom：擦除任何背景、对象
+<br>[https://www.photoroom.com/](https://www.photoroom.com/)
+造梦师：只需一句话，让你的文字变成画作
+<br>[https://printidea.art/](https://printidea.art/)
+ARC Lab：一款提供照片修复、抠图、画质增强的在线工具
+<br>[https://arc.tencent.com/zh/ai-demos/faceRestoration](https://arc.tencent.com/zh/ai-demos/faceRestoration)
+Artbreeder：人工智能合成创意工具
+<br>[https://www.artbreeder.com/](https://www.artbreeder.com/)
+Stockimg AI：生成各种各样的设计元素,包括logo、插画、图片壁纸等
+<br>[https://stockimg.ai/](https://stockimg.ai/)
+niji·journey：二次元ai绘画
+<br>[https://nijijourney.com/zh/](https://nijijourney.com/zh/)
+Getimg.ai：关键词生成图片的AI工具
+<br>[https://getimg.ai/](https://getimg.ai/)
+Dreamlike.art：AI图像生成
+<br>[https://dreamlike.art/](https://dreamlike.art/)
+文心一格 飞桨：AI艺术和创意辅助平台
+<br>[https://yige.baidu.com/](https://yige.baidu.com/)
+Phygital+：AI图像生成
+<br>[https://phygital.plus/](https://phygital.plus/)
+Beautiful.ai：AI生成PPT
+<br>[https://www.beautiful.ai/](https://www.beautiful.ai/)
+
+🎶AI音频
+Brain.fm：专注、放松、冥想和睡眠，聆听为您的大脑量身打造的音乐
+<br>[https://www.brain.fm/](https://www.brain.fm/)
+Soundraw：人工智障生成音乐
+<br>[https://soundraw.io/](https://soundraw.io/)
+Endel：个性化背景音，帮助您集中注意力、放松和睡眠
+<br>[https://endel.io/](https://endel.io/)
+Riffusion：实时音乐和音频生成库
+<br>[https://www.riffusion.com/](https://www.riffusion.com/)
+<br>[https://github.com/riffusion/riffusion](https://github.com/riffusion/riffusion)
+Papercup：人工智障配音和视频翻译软件
+<br>[https://www.papercup.com/](https://www.papercup.com/)
+LALAL.AI：从任何音频和视频中提取人声、伴奏和各种乐器
+<br>[https://www.lalal.ai/](https://www.lalal.ai/)
+Murf：使用多功能AI语音生成器从文本到语音
+<br>[https://murf.ai/](https://murf.ai/)
+PolyAI：语音助手
+<br>[https://poly.ai/](https://poly.ai/)
+Voicemod：语音实时变声器
+<br>[https://www.voicemod.net/zh/](https://www.voicemod.net/zh/)
+Boomy：人工智障生成音乐
+<br>[https://boomy.com/](https://boomy.com/)
+Mubert：人工智障生成音乐
+<br>[https://mubert.com/](https://mubert.com/)
+
+🎞AI视频
+Runway： AI 魔法工具
+<br>[https://runwayml.com/](https://runwayml.com/)
+Cascadeur：人工智障辅助关键帧动画软件
+<br>[https://cascadeur.com/](https://cascadeur.com/)
+Synthesia：人工智障视频生成
+<br>[https://www.synthesia.io/](https://www.synthesia.io/)
+Pollinations：文本转视频、图片
+<br>[https://pollinations.ai/](https://pollinations.ai/)
+Zubtitle：为视频添加字幕和在线编辑视频
+<br>[https://zubtitle.com/](https://zubtitle.com/)
+Munch：人工智障提取视频中的最引人入胜、最流行和最有影响力的片段
+<br>[https://www.getmunc](https://www.getmunc)
+
+搭建答题领红包微信小程序【源码+教程】 
+<br>https://pan.baidu.com/s/1I2iUgtIoqPnJPwJaSZOPkQ 提取码：4bqa 
+
+小红书PPT搬砖项目【内附上上千套PPT模板】
+<br>https://pan.baidu.com/s/18bE9NU7ItyWr6KAVO2_vIQ 提取码：yom9 
+
+ALibrary - A Backup Library 
+【非官方】z-library的备份网站
+<br>[https://alibrary.top/](https://alibrary.top/)
+更多：<br>https://eureka.mba/posts/81cc5063.html
+
+电视直播源搜索引擎
+国内外电视频道直播源搜索，m3u8、flv、rtsp、rtmp、txt直播源链接地址每日更新
+[http://tonkiang.us/](http://tonkiang.us/)
+m3u8在线播放器
+<br>[https://m3u8-player.com/](https://m3u8-player.com/)
+
+GPT4论文【中文+英文】
+<br>https://wwpj.lanzoul.com/b00wt7jle 密码:f7s7
+
+Ebook Translator：用 Calibre 翻译多语言多格式的电子书
+<br>[https://bookfere.com/post/1057.html](https://bookfere.com/post/1057.html)
+节跳动优秀文档的8大秘籍
+<br>[https://www.feishu.cn/docs/doccnBYiti3wwLmVGtnAabHIAwe](https://www.feishu.cn/docs/doccnBYiti3wwLmVGtnAabHIAwe)
+
+Regex.ai - 让 AI 帮你写正则表达式
+<br>[https://www.appinn.com/regex-ai/](https://www.appinn.com/regex-ai/)
+Waige - 在 Mac 菜单栏显示 OpenAI API 消耗量与余额
+<br>[https://www.appinn.com/waige/](https://www.appinn.com/waige/)
+
+Tune-A-Video 通过文本直接生成视频 
+<br>[https://github.com/showlab/Tune-A-Video](https://github.com/showlab/Tune-A-Video)
+解密下载的音乐文件工具的桌面客户端
+<br>[https://github.com/parakeet-rs/parakeet-wx](https://github.com/parakeet-rs/parakeet-wx)
+科研工作专用ChatGPT拓展，特别优化学术Paper润色体验，支持自定义快捷按钮，支持markdown表格显示，Tex公式双显示等
+<br>[https://github.com/binary-husky/chatgpt_academic](https://github.com/binary-husky/chatgpt_academic)
+桌面图像实时转文字工具
+<br>[https://github.com/xksoft/OcrHelper](https://github.com/xksoft/OcrHelper)
+
+AI工具图表合集
+<br>[https://www.bardeen.ai/posts/ultimate-ai-automation-guide#2](https://www.bardeen.ai/posts/ultimate-ai-automation-guide#2)
+感兴趣也可去这个网站主页下也有很多精品资源
+<br>[https://www.bardeen.ai/blog](https://www.bardeen.ai/blog)
+
+AI工具列表 
+<br>[https://doc.clickup.com/37456139/d/h/13q28b-164/972da0c0d0a4eb8/13q28b-1144](https://doc.clickup.com/37456139/d/h/13q28b-164/972da0c0d0a4eb8/13q28b-1144)
+
+[原创工具] 央视电视剧下载工具v1.0
+<br>[https://www.52pojie.cn/thread-1763584-1-1.html](https://www.52pojie.cn/thread-1763584-1-1.html)
+[Android] Xodo Docs_8.4.0 PDF阅读编辑器
+<br>[https://www.52pojie.cn/thread-1766264-1-1.html](https://www.52pojie.cn/thread-1766264-1-1.html)
+[原创工具] chrome、edge浏览器书签去重复
+<br>[https://www.52pojie.cn/thread-1765826-1-1.html](https://www.52pojie.cn/thread-1765826-1-1.html)
+[Windows] 免费文本转语音工具 Edge-TTS（1.9.7.4）
+<br>[https://www.52pojie.cn/thread-1766391-1-1.html](https://www.52pojie.cn/thread-1766391-1-1.html)
+[Windows] Dism++10.1.1002.1B C盘垃圾清理神器
+<br>[https://www.52pojie.cn/thread-1766418-1-1.html](https://www.52pojie.cn/thread-1766418-1-1.html)
+[原创工具] 抖音批量解析 支持图册 主页 易语言写的
+<br>[https://www.52pojie.cn/thread-1765364-1-1.html](https://www.52pojie.cn/thread-1765364-1-1.html)
+
+🎼免费在线听音乐+下载
+MP3 malina「在线+下载」：
+<br>[https://mp3-banana.pro/](https://mp3-banana.pro/)
+MyFreeMP3「在线+无损下载」：
+<br>[https://tool.liumingye.cn/music/](https://tool.liumingye.cn/music/)
+Free music Player「在线」：
+[http://ayy.ayxhk.com/](http://ayy.ayxhk.com/)
+mmPlayer 「在线」：
+<br>[https://netease-music.fe-mm.com/](https://netease-music.fe-mm.com/)
+铜钟「在线」：
+<br>[https://tonzhon.com/](https://tonzhon.com/)
+放屁音乐网「在线+下载」：
+<br>[https://www.fangpi.net/](https://www.fangpi.net/)
+煎饼搜「在线+下载」：
+<br>[https://www.jbsou.cn/](https://www.jbsou.cn/)
+无名音乐「在线+无损下载」：
+<br>[https://thewind.xyz/](https://thewind.xyz/)
+MusicEnc「在线」：
+<br>[https://www.musicenc.com/](https://www.musicenc.com/)
+
+ExtractPDF.com
+从PDF文件中提取图像，文本和字体
+<br>[https://www.extractpdf.com/zh.html](https://www.extractpdf.com/zh.html)
+
+小说下载器
+一个可扩展的通用型小说下载器，支持大部分常用网站
+<br>[https://greasyfork.org/zh-CN/scripts/406070-小说下载器](https://greasyfork.org/zh-CN/scripts/406070-小说下载器)
+
+Zlibrary 镜像
+网站：<br>https://zlibrary.ga/
+更多：<br>https://eureka.mba/posts/81cc5063.html
+
+将ChatGPT深度集成到浏览器中, 你所需要的一切均在于此
+<br>[https://github.com/josStorer/chatGPTBox/blob/master/README_ZH.md](https://github.com/josStorer/chatGPTBox/blob/master/README_ZH.md)
+一种使用 ChatGPT 自聊天数据训练的开源聊天模型
+<br>https://github.com/project-baize/baize-chatbot 
+一个用于训练、服务和评估基于大型语言模型的聊天机器人的开放平台。
+<br>https://github.com/lm-sys/FastChat  
+
+软件限免网站
+<br>[https://sharewareonsale.com/](https://sharewareonsale.com/)
+编程词典-计算机编程领域专业术语大全
+[http://dict.code-nav.cn/](http://dict.code-nav.cn/)
+免费在线白板
+<br>[https://www.tldraw.com/](https://www.tldraw.com/)
+中国法律快查手册
+<br>[https://lawrefbook.github.io/](https://lawrefbook.github.io/)
+
+IOS限免软件
+<br>[https://mergeek.com/free/apps](https://mergeek.com/free/apps)
+<br>[https://app.so/xianmian/](https://app.so/xianmian/)
+<br>[https://appsliced.co/](https://appsliced.co/)
+<br>[https://toucharcade.com/](https://toucharcade.com/)
+<br>[https://gofans.cn/](https://gofans.cn/)
+<br>[https://free.apprcn.com/](https://free.apprcn.com/)
+
+检测一段文字是否是AI书写的
+<br>[https://gptzero.me/](https://gptzero.me/)
+
+【PC】2D射击游戏，异常激烈
+<br>[https://battledudes.io/](https://battledudes.io/)
+
+生成豆瓣电影海报墙/音乐专辑封面墙/图书封面墙
+<br>[https://github.com/icue/DoubanImageWall](https://github.com/icue/DoubanImageWall)
+哔哩哔哩直播录制
+<br>[https://github.com/BililiveRecorder/BililiveRecorder](https://github.com/BililiveRecorder/BililiveRecorder)
+Calibre 去图书 DRM 保护插件，支持 Amazon 商店下载的图书
+<br>[https://github.com/noDRM/DeDRM_tools](https://github.com/noDRM/DeDRM_tools)
+一款可以在1000+视频网站下载视频的应用，同时支持android和ios
+<br>[https://github.com/shipinbaoku/videosdownloader](https://github.com/shipinbaoku/videosdownloader)
+
+英语学习导航
+网站1:<br>https://nav.guidebook.top/english
+网站2：<br>https://www.up-6.com/
+更多：<br>https://eureka.mba/posts/3f43dc72.html
+
+在每个国家/地区应该给多少小费？ 
+来源：
+<br>[https://www.visualcapitalist.com/cp/mapped-how-much-should-you-tip-in-each-country/](https://www.visualcapitalist.com/cp/mapped-how-much-should-you-tip-in-each-country/)
+高清图：
+<br>[https://www.visualcapitalist.com/wp-content/uploads/2023/04/How-Much-You-Should-Tip-Restaurant-Staff-Full-Size.html](https://www.visualcapitalist.com/wp-content/uploads/2023/04/How-Much-You-Should-Tip-Restaurant-Staff-Full-Size.html)
+
+💻PE维护装机系统
+
+1,微PE工具箱
+<br>[https://www.wepe.com.cn/](https://www.wepe.com.cn/)
+2,Edgeless
+<br>[https://home.edgeless.top/](https://home.edgeless.top/)
+3,FirPE Project
+<br>[https://www.firpe.cn/](https://www.firpe.cn/)
+4,HotPE
+<br>[https://www.hotpe.top/](https://www.hotpe.top/)
+5,杏雨梨云启动维护系统
+<br>[https://www.xyboot.com/](https://www.xyboot.com/)
+6,优启通
+<br>[https://www.itsk.com/](https://www.itsk.com/)
+7,U盘魔术师
+<br>[https://www.sysceo.com/usm](https://www.sysceo.com/usm)
+8,冰封PE
+[http://www.bfgho.com/](http://www.bfgho.com/)
+9,USBOS V3.0
+[http://bbs.wuyou.net/forum.php?mod=viewthread&tid=349965](http://bbs.wuyou.net/forum.php?mod=viewthread&tid=349965)
+10,H3集成PE系统最新发布
+[http://bbs.wuyou.net/forum.php?mod=viewthread&tid=370573](http://bbs.wuyou.net/forum.php?mod=viewthread&tid=370573)
+11,雷电PE
+[http://bbs.c3.wuyou.net/forum.php?mod=viewthread&tid=426252&extra=&page=1](http://bbs.c3.wuyou.net/forum.php?mod=viewthread&tid=426252&extra=&page=1)
+
+教程：可去B站/抖音搜索关键字 “ PE安装 ”
+
+秋叶小红书训练营【31期】，价值1999元 
+<br>https://pan.baidu.com/s/1ctngEyMVOgzPqDH3_Enfig 提取码：44d5 
+
+全面系统Python3.8入门+进阶 
+(程序员必备第二语言)全面系统Python3.8入门+进阶 (程序员必备第二语言)
+<br>https://pan.baidu.com/share/init?surl=2FqmcWTcCOeAHvkQv0o-DA 提取码：6666
+
+苹果快捷指令网站
+<br>[https://www.rcuts.com/](https://www.rcuts.com/)
+<br>[https://routinehub.co/](https://routinehub.co/)
+[http://jiejinghe.com/](http://jiejinghe.com/)
+
+文字版密室逃脱
+形式新颖的文字解谜类游戏，在线就能玩
+由于网站访问人数多，导致网站加载速度慢，耐心等几秒
+<br>[https://nodes-escape.hzfe.org/](https://nodes-escape.hzfe.org/)
+
+语音视频转字幕
+<br>[https://github.com/Forgot-Dream/STS-Bcut](https://github.com/Forgot-Dream/STS-Bcut)
+小嘿作文生成器
+根据主题谓语、主题宾语，生成中学考试风格的作文
+<br>[https://github.com/jackjyq/xiaohei-zuowen](https://github.com/jackjyq/xiaohei-zuowen)
+模糊图片秒变超清
+开源免费 AI 图片无损放大工具 (离线/跨平台)
+<br>https://github.com/upscayl/upscayl  
+
+🕹在线游戏<br>
+1，在线玩cs1.6,无需下载客户端
+<br>https://playcs.yikm.net/ <br>
+2，红白机游戏盒 - 在线畅玩小霸王经典游戏
+<br>[https://nes.heheda.top/](https://nes.heheda.top/)
+
+安卓markdown编辑器
+<br>[https://apt.izzysoft.de/fdroid/index/apk/com.adeeteya.markdown_editor](https://apt.izzysoft.de/fdroid/index/apk/com.adeeteya.markdown_editor)
+
+BookAI
+使用 AI 与任何书籍聊天
+<br>[https://www.bookai.chat/](https://www.bookai.chat/)
+
+2200+ notion风格图标
+<br>[https://www.overflow.design/ni-duotone.html](https://www.overflow.design/ni-duotone.html)
+
+中午吃什么，吃什么？
+<br>[https://chishenme.xyz/](https://chishenme.xyz/)
+手线条绘画工具
+<br>[https://perfect-freehand-example.vercel.app/](https://perfect-freehand-example.vercel.app/)
+
+ChatGPT 大师班：面向初学者的完整 ChatGPT 指南！
+从初学者到专家的 ChatGPT：关于使用 ChatGPT 和 OpenAI 启动或扩展业务的营销机构指南！
+<br>https://www.aliyundrive.com/s/461ESzuYRG9 密码：8f8m
+<br>https://koudaizy.lanzouf.com/b01kg13na 密码：8uwu
+
+完整的ChatGPTWeb开发代码–Javascript
+学习使用 ChatGPT 编码并将 Web 开发效率提高 10 倍 – 使用 ChatGPT 从头开始构建 MERN 项目
+<br>https://www.aliyundrive.com/s/qCTiVifNJVE 密码：12aj
+<br>https://koudaizy.lanzouf.com/b01kg133a 密码：aeix
+
+GitHub上前30的AI工具
+<br>[https://www.decibel.vc/content/launching-the-generative-ai-open-source-genos-index](https://www.decibel.vc/content/launching-the-generative-ai-open-source-genos-index)
+
+全网最全 Stable Diffusion 绘图教程：从小白到入门再到进阶📈
+<br>[https://ki6j1b0d92h.feishu.cn/wiki/wikcnPdHiLM91LbcfPnyaFUjjOe](https://ki6j1b0d92h.feishu.cn/wiki/wikcnPdHiLM91LbcfPnyaFUjjOe)
+
+AI Tools for Designers 设计师的人工智能工具
+<br>[https://designtools.ai/](https://designtools.ai/)
+
+一款免费的开源DJ软件
+<br>[https://github.com/mixxxdj/mixxx](https://github.com/mixxxdj/mixxx)
+
+文字转语音+影视解说配音+（朗读女9.2）含3个自选语音包
+[http://www.443w.com/tts/](http://www.443w.com/tts/)
+
+侠客短视频解析-支持国内外众多短视频(视频号)平台
+<br>[https://www.52pojie.cn/thread-1770772-1-1.html](https://www.52pojie.cn/thread-1770772-1-1.html)
+360驱动大师v2.0.0.1370绿色版
+<br>[https://www.52pojie.cn/thread-1775059-1-1.html](https://www.52pojie.cn/thread-1775059-1-1.html)
+
+🍇有趣的网站
+都是一些很哇贼，眼前一亮的网站
+建议用电脑端打开体验<br>
+http://2017.makemepulse.com/  <br>
+http://2018.makemepulse.com/   <br>https://2019.makemepulse.com/   <br>https://www.makemepulse.com/   <br>
+https://www.omfgdogs.com/#   <br>
+http://patorjk.com/    <br>
+http://cabbi.bo/enough-francais/  <br>
+https://www.airpano.org.cn/  <br>
+https://izzyburton.co.uk/  <br>
+https://zoomquilt.org/  <br>
+http://www.sinuousgame.com/  <br>
+https://theuselessweb.com/  <br>
+https://cineshader.com/  <br>
+
+Magic Keyboard 2 Test 妙控键盘 2 测试
+<br>[https://kylebing.cn/tools/keyboard/](https://kylebing.cn/tools/keyboard/)
+跟打器
+<br>[https://kylebing.cn/tools/typepad/](https://kylebing.cn/tools/typepad/)
+中英标点处理
+<br>[https://kylebing.cn/tools/words/](https://kylebing.cn/tools/words/)
+行程花费计算
+<br>[https://kylebing.cn/tools/car-oil/](https://kylebing.cn/tools/car-oil/)
+更多见作者网站：
+<br>[https://kylebing.cn/index/#/](https://kylebing.cn/index/#/)
+
+万字干货！超全面的色彩与应用指南PDF
+<br>[https://wwpj.lanzoul.com/iuV7N0tislbi](https://wwpj.lanzoul.com/iuV7N0tislbi)
+
+Butterfly主题美化教程
+<br>[https://butterfly.zhheo.com/](https://butterfly.zhheo.com/)
+
+知乎盐选文章搬运分享网站
+[http://www.juhaowan.club/](http://www.juhaowan.club/)
+更多见【3-15】分享
+也可发链接给Eureka导出
+
+【爱PPT】PPT模板免费下载
+<br>https://www.2ppt.com/ 
+
+Zlibrary镜像
+<br>https://libgen.yncjkj.com/ 
+
+霞鹜文楷，开源免费中文字体
+<br>[https://github.com/lxgw/LxgwWenKai](https://github.com/lxgw/LxgwWenKai)
+赫蹏（hètí）是专为中文内容展示设计的排版样式增强
+<br>[https://github.com/sivan/heti](https://github.com/sivan/heti)
+将自然语言转换为 shell 命令的 CLI
+<br>[https://github.com/builderio/ai-shell](https://github.com/builderio/ai-shell)
+解决各类ChatGPT使用过程中的问题
+<br>[https://github.com/xcanwin/KeepChatGPT/](https://github.com/xcanwin/KeepChatGPT/)
+
+AI工具整理
+<br>[https://bytedance.feishu.cn/base/AIMAbnJxQaNgSGsBAtwcdAkLnvf?table=tblmZTd8VuUOOONh&view=vew0Eo17BB](https://bytedance.feishu.cn/base/AIMAbnJxQaNgSGsBAtwcdAkLnvf?table=tblmZTd8VuUOOONh&view=vew0Eo17BB)
+
+某马-Python+大数据年度钻石会员|价值24980|课件齐全|14阶段完结无密
+<br>[https://pan.baidu.com/s/1fiZOAt4kyAUHCp8cUsbnsw?pwd=klll#list/path=%2F](https://pan.baidu.com/s/1fiZOAt4kyAUHCp8cUsbnsw?pwd=klll#list/path=%2F)
+
+NAT 穿透是如何工作的：技术原理及企业级实践（Tailscale, 2020）
+原文：<br>https://tailscale.com/blog/how-nat-traversal-works/
+译文：<br>https://arthurchiao.art/blog/how-nat-traversal-works-zh/
+
+小红书高清无水印图片视频下载
+<br>[https://www.52pojie.cn/thread-1776361-1-1.html](https://www.52pojie.cn/thread-1776361-1-1.html)
+小红书笔记下载 - 把喜欢的博主笔记藏在硬盘里
+<br>[https://www.52pojie.cn/thread-1776269-1-1.html](https://www.52pojie.cn/thread-1776269-1-1.html)
+小红书图片去水印原图
+<br>[https://www.52pojie.cn/thread-1757914-1-1.html](https://www.52pojie.cn/thread-1757914-1-1.html)
+
+🌐ChatGPT镜像网站
+免费，免登录，免KEY
+<br>[https://chat.v193.one](https://chat.v193.one)
+<br>[https://chat.vanav.eu.org/](https://chat.vanav.eu.org/)
+<br>[https://chat.w630.cc](https://chat.w630.cc)
+<br>[https://94gpt.com/#/chat/1682333258805](https://94gpt.com/#/chat/1682333258805)
+<br>[https://chat.lmsys.org/](https://chat.lmsys.org/)
+<br>[https://smartchat.unknownbyte.com/](https://smartchat.unknownbyte.com/)
+
+插画-PROCREATE 大师级画板 IPAD PRO 视频绘画教程[全
+<br>[https://pan.baidu.com/s/17BhfSbsOdM4igYVGZ6rfXA?pwd=9eam](https://pan.baidu.com/s/17BhfSbsOdM4igYVGZ6rfXA?pwd=9eam)
+
+小红书商家爆款打造特训
+<br>[https://www.aliyundrive.com/s/vuR3vydRVkj](https://www.aliyundrive.com/s/vuR3vydRVkj)
+
+资深·带货主播拉新实战班
+<br>[https://www.aliyundrive.com/s/aNcW5FBXb5v](https://www.aliyundrive.com/s/aNcW5FBXb5v)
+
+抖音卖课训练营
+<br>[https://www.aliyundrive.com/s/PY1xCKRAwgm](https://www.aliyundrive.com/s/PY1xCKRAwgm)
+
+拼多多“新手到高手”实战特训营
+<br>[https://www.aliyundrive.com/s/gP6N4WDkzX5](https://www.aliyundrive.com/s/gP6N4WDkzX5)
+
+Z-Library种子+书目
+<br>https://pan.baidu.com/s/1Lj39c5PGkAhCmmmI0ZME0g?pwd=5vq8 提取码：5vq8
+
+Office&WPS插件汇总
+<br>[https://www.52pojie.cn/thread-1792361-1-1.html](https://www.52pojie.cn/thread-1792361-1-1.html)
+<br>https://www.123pan.com/s/Tdi8Vv-OwaKA.html 提取码:52PJ
+![](https://eureka-1302416167.cos.ap-nanjing.myqcloud.com/img/Eureka_2023-06-03_22-11-36.png)
+
+抖音批量下载与去水印工具, 视频、图集、合集、音乐(原声)
+<br>[https://github.com/imgyh/tiktok](https://github.com/imgyh/tiktok)
+
+大麦网自动购票, 支持docker一键部署
+<br>[https://github.com/ClassmateLin/dm-ticket](https://github.com/ClassmateLin/dm-ticket)
+
+🆕CSDN广告完全过滤、人性化脚本优化
+不用再登录了！让你体验令人惊喜的崭新CSDN
+<br>[https://greasyfork.org/zh-CN/scripts/378351-持续更新-csdn广告完全过滤-人性化脚本优化-不用再登录了-让你体验令人惊喜的崭新csdn](https://greasyfork.org/zh-CN/scripts/378351-持续更新-csdn广告完全过滤-人性化脚本优化-不用再登录了-让你体验令人惊喜的崭新csdn)
+
+🐲策划/运营/文案必备的网站！
+
+1、活动汪：
+www.eventwang.cn
+提供大量免费的策划方案和活动案例，部分付费。
+
+2、黑猫会：
+www.heimaohui.com
+办活动、写方案，这个网站都提供了不少参考案例。
+
+3、大创意：
+www.pitchina.com.cn
+提供了不少创意案例，做策划啥的可以参考。
+
+4、梅花网：
+www.meihua.info
+大量创意灵感案例。
+
+5、TOPYS：
+www.topys.cn
+创意分享平台，最经典的广告文案收录在这里。
+
+6、ADGuider：
+www.adguider.com
+全球广告案例搜索工具，还提供营销热点日历。
+
+7、句易网：
+www.ju1.cn
+禁用词查询，写广告文案必备。
+
+8、素材巷：
+sucaixiang.com
+提供了许多写作素材，有清晰的分类！写不出东西的时候可以来这里找找灵感。 
+
+9、文案狗：
+www.wenangou.com
+输入关键字，就能生成很多带这个字的谐音文字，包括成语、诗词、俗语等。
+
+10、易撰：
+www.yizhuan5.com
+帮你轻松实现热点追踪，实时分析各大平台爆文。
+
+11、Giiso写作机器人：
+www.giiso.com
+可以根据关键词自动生成写作素材。
+
+12、鸟哥笔记：
+www.niaogebiji.com
+干货为主，内容包括运营、营销、推广等。
+
+13、文案迷：
+www.wenanmi.com
+内容丰富，包含各行各业的文案，可以参考。
+
+14、据意查句：
+wantquotes.net
+只需要输入描述，就可以找到相应的名言名句。  
+
+15、HiPPTER：
+www.hippter.com
+找PPT模板、素材、配色、字体啥的，存上这个网站就够了。
+
+Azure OpenAI Service 注册申请与配置心得
+<br>[https://atlassc.net/2023/04/25/azure-openai-service](https://atlassc.net/2023/04/25/azure-openai-service)
+
+Midjourney提示生成器
+一个为Midjourney的图像生成AI设计的提示生成器
+<br>[https://github.com/jesselau76/GPT-Prompts/blob/main/midjourney-prompt-generator/README-zh.md](https://github.com/jesselau76/GPT-Prompts/blob/main/midjourney-prompt-generator/README-zh.md)
+
+Three.js可视化企业实战WEBGL课（新增Cesium+元宇宙）|价值2980|阶段41|课件齐全|完结无密
+<br>https://pan.baidu.com/share/init?surl=fgW2z-6pDo46YN-1Z8ozLQ&amp;pwd=tdi0
+码同学企业微信自动化测试训练营
+链接：<br>https://pan.baidu.com/s/12H0k9g8oXfeqEY7Kmbci_Q 密码：9of7
+
+某鹅通已购批量下载
+<br>[https://www.52pojie.cn/thread-1781652-1-1.html](https://www.52pojie.cn/thread-1781652-1-1.html)
+打印机不打印修复工具 v1.3
+<br>[https://www.52pojie.cn/thread-1783710-1-1.html](https://www.52pojie.cn/thread-1783710-1-1.html)
+微软文字转语音工具 3.0 ，支持Win7、字幕合成语音、自定义SSML
+<br>[https://www.52pojie.cn/thread-1779034-1-1.html](https://www.52pojie.cn/thread-1779034-1-1.html)
+多平台视频解析下载 B版 v1.6（5月9日更新）
+<br>[https://www.52pojie.cn/thread-1780508-1-1.html](https://www.52pojie.cn/thread-1780508-1-1.html)
+小红书批量下载软件ReaTool1.0.4
+<br>[https://www.52pojie.cn/thread-1782592-1-1.html](https://www.52pojie.cn/thread-1782592-1-1.html)
+微博图片下载助手 v2.5
+<br>[https://www.52pojie.cn/thread-1781844-1-1.html](https://www.52pojie.cn/thread-1781844-1-1.html)
+
+【Black cat黑猫出版社】全系列 PDF+音频
+一套针对初学儿童所精心规划的故事读本，让孩子悠游于经典故事的同时，不知不觉从趣味阅读中认识生活中的常见字汇，并熟悉英文基础文法
+<br>https://pan.baidu.com/s/1R5Re3EULINnYIwDSBh41HA?pwd=g0b3 提取码：g0b3 
+
+小说写作教程
+<br>https://pan.baidu.com/s/11vESRsh5WJegdEzprj0PDg?pwd=8pxo 提取码：8pxo 
+
+扩容u盘鉴定&磁盘毁尸灭迹
+<br>[https://github.com/epcsoft/driveclear](https://github.com/epcsoft/driveclear)
+H2testw一款免费工具，用于测量 U 盘的可用存储容量
+<br>[https://h2testw.en.lo4d.com/windows](https://h2testw.en.lo4d.com/windows)
+
+🍡一些有趣的网站
+Weird or Confusing
+奇怪或令人困惑，古怪、恶作剧和一些毫无意义的事情
+<br>[https://weirdorconfusing.com/](https://weirdorconfusing.com/)
+SLIDING TOYS 数字拼图游戏
+<br>[https://sliding.toys/mystic-square/8-puzzle/](https://sliding.toys/mystic-square/8-puzzle/)
+迷宫游戏
+<br>[https://maze.toys/mazes/mini/](https://maze.toys/mazes/mini/)
+数独游戏华容道Sliding Toys
+<br>[https://sliding.toys/](https://sliding.toys/)
+解压游戏
+[http://www.koalastothemax.com/](http://www.koalastothemax.com/)
+<br>[https://smashthewalls.com/](https://smashthewalls.com/)
+<br>[https://cat-bounce.com/](https://cat-bounce.com/)
+训练反应
+<br>[https://checkboxrace.com/](https://checkboxrace.com/)
+
+闲鱼被骗经历
+<br>[https://zhuanlan.zhihu.com/p/625230704](https://zhuanlan.zhihu.com/p/625230704)
+
+生物学、遗传学和计算生物学的社区博客
+<br>[https://journals.plos.org/plosbiology/](https://journals.plos.org/plosbiology/)
+统计学生物医学数据科学教授
+<br>[https://hastie.su.domains/](https://hastie.su.domains/)
+
+一个可以观看国内主流视频平台所有视频的客户端（Mac、Windows、Linux）
+<br>[https://github.com/phobal/ivideo/](https://github.com/phobal/ivideo/)
+一个简约的音乐下载工具
+<br>[https://github.com/ZYKsslm/BlackStone_Music_GUI](https://github.com/ZYKsslm/BlackStone_Music_GUI)
+为任何视频或音频文件生成字幕文件和翻译的字幕文件
+<br>[https://github.com/botbahlul/PyAutoSRT](https://github.com/botbahlul/PyAutoSRT)
+
+几个俄罗斯老毛子的软件破解资源网站
+<br>https://positiverecords.ru/ （Win端）
+<br>https://www.cybermania.ws/ （安卓的）
+<br>https://www.androeed.ru/ （安卓的）
+<br>https://w14.monkrus.ws/ （专门破解Adobe）
+<br>https://appstorrent.ru/ （Mac端）
+<br>https://rutracker.org/ （综合的)
+<br>https://softoroom.org/ (游戏软件）
+
+🔥 10 个热门 AI 工具：
+🌟 AI 设计 -  http://Uizard.io  <br>
+🚀 AI 会议 -  http://tldv.io  <br>
+🌐 AI 网站 -  http://durable.co  <br>
+💡 AI 提示 -  http://wnr.ai  <br>
+📝 AI 博客 -  http://hashnode.com/ai  <br>
+🧩 AI 编辑 -  http://Cohesive.so  <br>
+🎨 AI 艺术 -  http://imgcreator.ai  <br>
+🎬 AI 剪辑 -  https://opus.pro  <br>
+📷 AI 图片 -  http://tryleap.ai  <br>
+📧 AI 邮件 -  http://Chatgptforgmail.com  <br>
+
+从 iCloud 下载照片的命令行工具
+<br>https://github.com/icloud-photos-downloader/icloud_photos_downloader  
+
+小红书无双课一天引50+女粉，不用做视频发视频，小白也很容易上手拿到结果
+<br>https://pan.baidu.com/s/1q6d7d-yZf1ImmqGimbBW4g 提取码：mztb 
+
+小红书卖高考虚拟资料变现分享课：轻松月入过万（视频+配套资料）
+<br>https://pan.baidu.com/s/1EXF2wkIgZd3Qa9Q5eNbTuA 提取码：z0m9
+
+AudioGPT：理解和生成语音、音乐、声音和说话头
+ 生成音乐 🎶
+
+- 背景音效 🎵
+- 音频生成字幕 🎤
+- 文字生成音频 🗣
+- 文字生成音频并模拟声音 📢
+- 根据图片生成音频 🖼🎶
+- 对音频进行inpaint（局部屏蔽）🔇
+- 根据音频和人脸照片合成视频 🎥🎵
+- 检测音频中的事件，以及开始和结束时间 ⏰🔊
+- 单声道变双声道 🔊➡🔊🔊
+- 通过文本描述检测特定声音发生的时间 📝🔊⏰
+- 抽取某种声音 🔊🔎
+- 去除背景噪音 🚫🔊
+  多人混合声分离出单人声音 🔊👥➡🔊👤
+  语音翻译 🗣🌐
+  项目：<br>https://github.com/AIGC-Audio/AudioGPT
+  演示：<br>https://huggingface.co/spaces/AIGC-Audio/AudioGPT
+  论文：<br>https://arxiv.org/abs/2304.12995
+
+面向开发人员的ChatGPT提示工程免费学习
+来自吴恩达老师和 OpenAI 合作的正规教程，图文+视频（可下载），有英文字幕
+<br>[https://www.deeplearning.ai/short-courses/chatgpt-prompt-engineering-for-developers/](https://www.deeplearning.ai/short-courses/chatgpt-prompt-engineering-for-developers/)
+如何使用 Azure OpenAI Service 中的 GPT-3、ChatGPT 和 GPT-4 模型进行提示工程技术
+<br>https://learn.microsoft.com/en-us/azure/cognitive-services/openai/concepts/prompt-engineering  
+
+一个发布有关自然世界的新闻和新兴故事的平台
+<br>https://www.earthtouchnews.com/ 
+维多利亚大学的生物自然海洋等考察研究
+<br>[https://www.centralcoastbiodiversity.org/](https://www.centralcoastbiodiversity.org/)
+
+APP Store应用
+1，Read Speak: AI口语陪练
+一个利用ChatGPT来帮助练习口语的App，目前免费使用
+<br>[https://apps.apple.com/app/read-speak/id6446971140](https://apps.apple.com/app/read-speak/id6446971140)
+2，灵瓜背单词
+一款基于最新 Ai 技术帮助你通过读故事轻松高效背单词的 App
+<br>[https://apps.apple.com/cn/app/灵瓜背单词-ai创意读故事轻松学英语/id6446497697?platform=iphone](https://apps.apple.com/cn/app/灵瓜背单词-ai创意读故事轻松学英语/id6446497697?platform=iphone)
+3，Aboboo
+学外语软件
+[http://www.aboboo.com/index.html](http://www.aboboo.com/index.html)
+
+一个类似emby的专注于刮削alist聚合网盘形成影视媒体库的程序
+<br>[https://github.com/msterzhang/onelist](https://github.com/msterzhang/onelist)
+
+🛠在线工具箱合集
+<br>[https://jingzhunyun.com/](https://jingzhunyun.com/)
+<br>[https://www.dute.org/](https://www.dute.org/)
+<br>[https://ss.netnr.com/](https://ss.netnr.com/)
+<br>[https://toolgg.com/](https://toolgg.com/)
+<br>[https://tools.miku.ac/](https://tools.miku.ac/)
+[http://www.atoolbox.net/](http://www.atoolbox.net/)
+[http://tool.mkblog.cn/](http://tool.mkblog.cn/)
+<br>[https://www.toolzl.com/](https://www.toolzl.com/)
+<br>[https://www.toolnb.com/](https://www.toolnb.com/)
+[http://www.tbtool.cn/](http://www.tbtool.cn/)
+[http://www.kbtool.cn/](http://www.kbtool.cn/)
+<br>[https://www.iamwawa.cn/](https://www.iamwawa.cn/)
+<br>[https://toolight.cn/](https://toolight.cn/)
+<br>[https://devtool.tech/](https://devtool.tech/)
+<br>[https://www.ygktool.com/](https://www.ygktool.com/)
+<br>[https://tool.liumingye.cn/](https://tool.liumingye.cn/)
+<br>[https://it-tools.tech/](https://it-tools.tech/)
+<br>[https://www.medlive.cn/tools.php](https://www.medlive.cn/tools.php)
+<br>[https://www.matools.com/](https://www.matools.com/)
+
+🎞全球10大片源BT网站
+
+1. 海盗湾： <br>https://thepiratebay.org/
+2. 1337X：<br>https://1337x.to/
+3. EZTV： <br>https://eztv.re/
+4. YTS： <br>https://yts.mx/
+5. RARBG: <br>https://rarbg.to/
+6. 恶魔网： <br>https://www.demonoid.is/
+7. Nyaa: <br>https://nyaa.si/
+8. BT4G：<br>https://bt4g.org/
+9. magnetDL： www.magnetdl.com/
+10. Zooqle：<br>https://zooqle.com
+
+##### ✨B站自动直播，推流工具
+
+我已经搭建好了的直播间
+【狐妖小红娘-哔哩哔哩直播】 <br>https://b23.tv/6Cjdxq8
+1.准备一台服务器，服务器系统随便装一个linux就可以。
+我自己用的2h4g。
+2.连接服务器一键安装脚本
+curl -fsSL get.kplayer.net | bash
+3.获取推流地址填入，不需要多开删除这2行
+    - path: 'rtmp://live-push.bilivideo.com/live-bvc/2'
+      unique: bilibili2  # 输出路径2
+修改配置文件后直接复制粘贴进去
+cd kplayer
+nano config.yaml
+按下Ctrl + O组合键保存更改。
+按下Ctrl + X组合键退出nano编辑器。
+我这里用的yaml配置，官方默认是json
+
+version: 2.0.0
+
+resource:
+  lists:
+    - /root/Downloads/  # 资源文件或目录的路径
+  extensions:
+    - mp4  # 支持的文件扩展名
+    - flv
+    - mkv
+
+play:
+  start_point: 1  # 播放起始点
+  play_model: loop  # 播放模式（例如循环、随机）
+  encode_model: rtmp  # 编码模式
+  cache_on: true  # 启用缓存
+  cache_uncheck: false  # 启用未检查的缓存
+  skip_invalid_resource: false  # 跳过无效的资源
+  fill_strategy: tile  # 显示填充策略
+  rpc:
+    'on': true  # 启用远程过程调用（RPC）
+    http_port: 4197  # RPC 的 HTTP 端口
+    grpc_port: 4187  # RPC 的 gRPC 端口
+    address: 127.0.0.1  # RPC 的地址
+  encode:
+    video_width: 1280 #分辨率
+    video_height: 720
+    video_fps: 30 #视频帧数
+    audio_channel_layout: 3
+    audio_sample_rate: 44100
+    bit_rate: 0
+    avg_quality: 0
+
+output:
+  reconnect_internal: -1
+  lists:
+    - path: 'rtmp://live-push.bilivideo.com/live-bvc/1'
+      unique: bilibili  # 输出路径1
+    - path: 'rtmp://live-push.bilivideo.com/live-bvc/2'
+      unique: bilibili2  # 输出路径2
+
+plugin:
+  lists:
+    - path: show-filename #显示播放文件名称
+      unique: my_plugin  # 插件的唯一标识符
+      params:
+        fontcolor: #F8F8FF  # 字体颜色
+        font_size: 20  # 字体大小
+
+4.运行推流脚本
+cd kplayer
+./kplayer play start
+后台运行
+./kplayer play start -d
+接下来返回你的直播间，等待一段时间就会发现直播已经开始了。
+
+视频教程参考这位的
+【【Kplayer教程】用云服务器在B站24h直播-哔哩哔哩】 <br>https://b23.tv/cnDXcLZ
+
+kplayer官方文档：docs.kplayer.net
+
+看到一条评论说：为什么高铁上的人很安静，而火车上却是叽叽喳喳的，有这样一个高赞的回答，因为高铁坐的是“儿女”，火车坐的是父母，高铁是理想，火车是归途，高铁是中国速度，火车是中国温暖，高铁很快，快的让你记不起邻座的样子，火车很慢，慢到你可以听一个人讲完他的一生，高铁是朝九晚五的奔波，而火车是人间烟火的相逢
+
+
+---
+
+# 新闻播报
+
+> 来源: https://ldi123.tk/MyNet/pages/5d8671/
+> 日期: 2023-05-02 23:32:40
+
+<p style="text-align:center">
+<img src="https://api.03c3.cn/api/zb"/>
+</p>
+
+
+---
+
+# 收集的资料
+
+> 来源: https://ldi123.tk/MyNet/pages/d2a0b5/
+> 日期: 2022-12-25 00:17:19
+
+## 常用Pyton脚本
+
+- [PDF转Word](https://github.com/python-fan/pdf2word)
+- [scihub论文下载器](https://github.com/Ckend/scihub-cn)
+- [题库爬虫](https://github.com/reece15/tiku_spider)
+- [影视小说音乐等爬虫](https://github.com/Jack-Cherish/python-spider)
+- [淘宝抢购](https://github.com/jerry3747/taobao_seckill)
+- [翻译](https://github.com/foyoux/pygtrans)
+
+## 其他
+
+暂无
+
+
+---
+
+# 常用网站索引
+
+> 来源: https://ldi123.tk/MyNet/pages/2ff955/
+> 日期: 2022-01-03 22:12:32
+
+```yaml
+	
+- name: IamDi
+  desc: I can
+  avatar: https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/杨紫奥宝/u=271884330,2615280885&fm=26&fmt=auto.6asng7519u80.webp
+  link: https://ldi123.tk/MyNet
+	
+- name: telegram中文搜索
+  desc: 采集了各大热门TG资源群的群聊记录
+  avatar: http://114.55.7.136:8088/202201/1710cded25114ade8ae39036efe9acd4.png 
+  link: https://www.sssoou.com/
+  bgColor: '#CBEAFA' 
+  textColor: '#6854A1' 
+	
+```
+
+```yaml
+
+- img: https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/杨紫奥宝/Screenshot_2021_1216_123852.flr49fcisg8.png # 图片地址
+  link: https://www.baidu.com/s?ie=UTF-8&wd=%E6%9D%A8%E7%B4%AB # 链接地址
+  name: 杨紫专属
+  desc: cc # 可选
+  author: di # 可选
+  avatar: https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/杨紫奥宝/src=http___inews.kx9kgrj9o00.webp # 作者头像，可选
+	
+	
+```
+
+``` yaml 
+- name: 名称
+  desc: 描述
+  avatar: https://xxx.jpg # 头像，可选
+  link: https://xxx/ # 链接，可选
+  bgColor: '#CBEAFA' # 背景色，可选，默认var(--bodyBg)。颜色值有#号时请添加引号
+  textColor: '#6854A1' # 文本色，可选，默认var(--textColor)
+```
+
+图文卡片列表格式:
+
+``` yaml
+- img: https://xxx.jpg # 图片地址
+  link: https://xxx.com # 链接地址
+  name: 标题
+  desc: 描述 # 可选
+  author: 作者名称 # 可选
+  avatar: https://xxx.jpg # 作者头像，可选
+```
+
+
+---
+
+# 常用的前端轮子
+
+> 来源: https://ldi123.tk/MyNet/pages/d61501/
+> 日期: 2021-12-06 00:43:42
+
+## React UI 组件库
+- [Ant Design](https://ant.design/)
+- [React Bootstrap](https://react-bootstrap.github.io/)
+- [MATERIAL-UI](https://material-ui.com/)
+
+## Vue UI组件库
+- [Element UI](https://element.eleme.io/#/zh-CN) PC端
+- [Vant](https://youzan.github.io/vant/#/zh-CN/) 移动端
+- [View UI](https://www.iviewui.com/)
+
+## 常用效果组件
+- [Animate.css](https://animate.style/) 动画库
+- [Swiper](https://www.swiper.com.cn/) 轮播组件
+- [mescroll](http://www.mescroll.com) 下拉刷新和上拉加载框架-基于原生JS
+
+## 工具类
+- [Lodash.js](https://www.lodashjs.com/)
+- [Day.js](https://dayjs.fenxianglu.cn/) 处理日期
+- [Timeago.js](https://github.com/hustcc/timeago.js) 相对时间，如N小时前
+- [Echarts](https://echarts.apache.org/zh/index.html) 百度图表
+- [Meditor.md](https://pandao.github.io/editor.md/) 开源在线 Markdown 编辑器
+- [validator.js](https://github.com/validatorjs/validator.js) 验证库
+
+ ## Vue工具类
+- [vue-draggable](https://www.itxst.com/vue-draggable/tutorial.html) 基于Sortable.js实现的vue拖拽插件
+- [vue-qr](https://www.npmjs.com/package/vue-qr) 文本转二维码
+- [vue-cropper](https://github.com/xyxiao001/vue-cropper) 图片裁剪插件
+- [vue-lazyload](https://www.npmjs.com/package/vue-lazyload) 懒加载
+- [vue-simple-upload](https://github.com/saivarunk/vue-simple-upload) 上传组件
+
+## 其他
+- [H5带笔锋手写签名，支持PC端和移动端](https://github.com/linjc/smooth-signature)
+
+
+---
+
+# 网站
+
+> 来源: https://ldi123.tk/MyNet/pages/e0b30c/
+> 日期: 2021-12-06 00:43:42
+
+# 个人收藏夹
+
+## 推荐
+* [panjiachen](https://panjiachen.github.io/awesome-bookmarks/)
+* [编程导航](https://www.code-nav.cn/)
+* [前端知识图谱+B站资源整合](https://gitee.com/jishupang/web_atlas)
+
+## 文档
+* [MDN](https://developer.mozilla.org/zh-CN/docs/Web) | [MDN-JS标准内置对象](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects) Web技术权威文档
+* [DevDocs](https://devdocs.io/) Web 开发技术文档，非常不错的学习手册！
+* [现代JavaScript教程](https://zh.javascript.info) 以最新标准为基准的JS教程
+* [ES5教程](https://wangdoc.com/javascript/) 阮一峰的JS教程
+* [ES6教程](http://es6.ruanyifeng.com/) 阮一峰的ES6教程
+* [Bash 脚本教程](https://wangdoc.com/bash/) 阮一峰编写
+* [ECMA](https://www.ecma-international.org/) ECMA官网
+* [菜鸟教程](https://www.runoob.com/) 涵盖多种语言的初级教程
+* [腾讯云开发者手册](https://cloud.tencent.com/developer/devdocs)
+
+## 社区
+* [Github](https://github.com/) 程序员同性交友社区
+* [掘金](https://juejin.im/) 一个帮助开发者成长的社区
+* [简书](https://www.jianshu.com/) 有很多频道的创作社区
+* [思否](https://segmentfault.com/) 解决技术问题的社区
+* [stack overflow](https://stackoverflow.com/) 同上，外网的
+* [InfoQ](https://www.infoq.cn/topic/Front-end) 促进软件开发及相关领域知识与创新的传播
+* [V2EX](https://www.v2ex.com/) 创意工作者们的社区
+* [鱼塘热榜](https://mo.fish) 划水网站，收集了很多网站，当天热门文章
+* [码力全开资源库](https://maliquankai.com/designnav/) 很全很强大，独立开发者/设计干货/优质利器/工具资源...
+
+## 博客
+* [阮一峰的网络日志](http://www.ruanyifeng.com/blog/)
+* [samanthaming](https://www.samanthaming.com/) 对前端小知识点的总结，并为每个知识点制作精美的小卡片。
+
+## 电子书
+* [高教书苑](https://ebook.hep.com.cn/ebooks/h5/index.html) 高等教育出版社的书籍，包含多种学科。
+
+* [SoBooks](https://sobooks.cc/) 免费的电子书资源网站
+
+## 文章
+* [灵活运用CSS开发技巧](https://juejin.im/post/5d4d0ec651882549594e7293)
+
+## 科学上网
+- [谷歌chrome商店访问助手](https://www.ggfwzs.com/)
+
+- [谷歌云+V2Ray](https://www.baidu.com/s?ie=UTF-8&wd=%E8%B0%B7%E6%AD%8C%E4%BA%91%20V2Ray)
+
+## 视频
+* [bilibili](https://www.bilibili.com/) B站，上面很多免费教学视频
+* [慕课网](https://www.imooc.com/) 实战视频教程
+* [妙味课堂](https://www.miaov.com/) 比较系统的前端入门视频教程
+* [中国大学MOOC](https://www.icourse163.org/) 涵盖计算机、外语、心理学等专业免费课程
+* [egghead](http://egghead.io) 质量还不错的短视频教程，外网
+
+## 电视直播
+* [CCTV、卫视高清直播](http://ivi.bupt.edu.cn/)
+
+## Github
+* [github 短域名服务](https://git.io/)
+* [shields](https://shields.io/) 徽章图标
+* [followers 全球排名](https://wangchujiang.com/github-rank/index.html)
+* [star-history](https://star-history.t9t.io/) 展示一个项目 Stars 增长曲线
+
+## 前端小工具
+* [Can I use](https://caniuse.com/) 查看属性和方法的兼容性
+* [30 seconds of code](https://30secondsofcode.org/) 收集了许多有用的代码小片段
+
+## 代码编辑
+* [codepen](https://codepen.io) 在线代码编辑与演示
+* [codesandbox](https://codesandbox.io) 内嵌VSCode的在线IDE
+
+## Emoji表情
+* [emoji表情](https://emojipedia.org/)
+* [emoji表情备忘录](https://www.webfx.com/tools/emoji-cheat-sheet)
+* [gitmoji](https://github.com/carloscuesta/gitmoji) 通过 emoji 表达 git 的操作内容
+
+> 在任意输入框快速打开emoji表情方法：<br/>
+> Windows系统下按<kbd>Win</kbd> + <kbd>.</kbd><br/>
+> Mac系统下按<kbd>Control</kbd> + <kbd>Command</kbd> + <kbd>空格</kbd>
+
+## 图片工具
+* [tinypng图片压缩](https://tinypng.com) 压缩png很有用
+* [微图](https://devtool.tech/tiny-image) 浏览器端图片压缩，不会上传图片到服务器
+* [Squoosh](https://squoosh.app/) 谷歌出品在线免费图片压缩工具（jpg、png等,压缩效果比tinypng稍好）
+* [waifu2x](http://waifu2x.udp.jp/) 通过卷积网络放大图片
+* [vectormagic](https://vectormagic.com/) 转换矢量图
+* [vectorizer](https://www.vectorizer.io/) 真正的 png 转 svg 神器
+* [在线AI图片处理](https://photo.opencool.cn/) 黑白修复、无损放大、动漫化、铅笔画等。
+* [remove](https://www.remove.bg/zh) AI抠图
+* [backgroundremover](https://github.com/nadermx/backgroundremover) 又一个抠图的
+
+## 作图
+* [processon在线作图](https://www.processon.com/) 流程图、思维导图、原型图等
+* [百度脑图](https://naotu.baidu.com) 思维导图
+
+## CSS
+
+- [各种CSS生成器和JS代码片段](https://juejin.cn/post/7030572979868139551?utm_source=gold_browser_extension)
+
+* [CSS Tricks](http://css-tricks.neatbang.com/) CSS技巧收集与演示
+* [CSS生成器](https://neumorphism.io/)
+* [CSS渐变生成器](https://www.colorzilla.com/gradient-editor/)
+* [CSS3-Box Shadow(阴影)](https://www.html.cn/tool/css3Preview/Box-Shadow.html)
+* [贝塞尔曲线生成器	](https://cubic-bezier.com)
+* [花纹背景生成器](http://www.heropatterns.com/)
+* [花纹背景-pattern.css](https://github.com/bansal-io/pattern.css)
+* [3D字体](https://bennettfeely.com/ztext/)
+* [css-tricks](https://css-tricks.com/) css技巧文章
+* [You-need-to-know-css](https://lhammer.cn/You-need-to-know-css/#/zh-cn/) CSS的各种DEMO，很全
+* [animista](https://animista.net/) CSS动画可视化工具，复制代码就能用
+* [navnav](http://navnav.co/) 各种炫酷的CSS动画组件
+
+## CDN加速
+* [jsDelivr](http://www.jsdelivr.com/) 国外的一家优秀的公共 CDN 服务提供商
+* [unpkg](https://unpkg.com/) cdn 服务
+
+## 网站托管
+- [vercel](https://vercel.com/) 好用的网站托管服务
+## 正则
+* [正则可视化](https://regex101.com/)
+* [iHateRegex](https://ihateregex.io/) 正则搜索，细节做得很好
+* [正则迷你书](https://github.com/qdlaoyao/js-regex-mini-book) 学习正则的小手册
+## 其他
+* [Linux命令手册](https://ipcmen.com/)
+* [carbon代码图片生成器](https://carbon.now.sh/) 生成好看的代码图片
+
+## 设计
+- [创造师导航](http://chuangzaoshi.com/)
+- [设计师网址导航](http://hao.uisdc.com/)
+- [remove](https://www.remove.bg/zh) AI抠图，抠图算法很厉害
+- [Manypixels](https://www.manypixels.co/gallery/) 插画
+- [Undraw](https://undraw.co/illustrations) 插画
+- [storytale](https://storytale.io/) 插画，种类丰富，包含3D插画
+- [uimovement](https://uimovement.com/) 能从这个网站找到不少动画交互的灵感
+- [awwwards](https://www.awwwards.com/)是一个一个专门为设计精美的网站以及富有创意的网站颁奖的网站
+- [dribbble](https://dribbble.com/) 经常能在上面找到很多有创意好看的 gif 或者图片
+- [Bēhance](https://www.behance.net/) dribbble 是设计师的微博，Bēhance 是设计师的博客
+- [Logojoy](https://logojoy.com/) 使用 ai 做 logo 的网站，做出来的 logo 质量还不错。
+- [brandmark](http://brandmark.io/) 另一个在线制作 logo 网站
+- [instant](https://instantlogodesign.com/) 又一个 logo 制作网站
+- [namecheap](https://www.namecheap.com/logo-maker/app/)又一个 logo 制作网站
+- [logo-maker](https://www.designevo.com/logo-maker/) 又一个 logo 制作网站 这个更简单点 就是选模板之后微调
+- [coolors](https://coolors.co/) 帮你在线配色的网站 你能找到不少配色灵感
+- [colorhunt](http://colorhunt.co/) 另一个配色网站
+- [uigradients](https://uigradients.com/#SummerDog) 渐变色网站
+- [designcap](https://www.designcap.com/) 在线海报设计
+- [Flat UI 色表](https://flatuicolors.com/) Flat UI 色表
+- [0to255](https://www.0to255.com/) 颜色梯度
+- [Ikonate](https://github.com/mikolajdobrucki/ikonate) 提供免费的图标 icons
+- [remixicon](https://remixicon.com/) 又一个提供免费图标 icons
+- [feather](https://github.com/feathericons/feather) 免费的 icons
+- [nord ](https://github.com/arcticicestudio/nord) 北欧性冷淡风主题配色
+- [Unsplash](https://unsplash.com/) 提供免费的高清图片
+- [Pexels](https://www.pexels.com/zh-cn/) 提供免费的高清图片
+- [colorkitty](https://colorkitty.com/) 从你的图片中提取配色
+- [design.youzan](http://design.youzan.com/) 有赞设计原则
+- [iconfont](https://www.iconfont.cn/) 阿里巴巴矢量图标库
+- [undraw](https://undraw.co/illustrations) 免费的矢量插画
+- [icomoon](https://icomoon.io/) 矢量图标库
+- [cssicon](http://cssicon.space/#/) 所有的 icon 都是纯 css 画的 缺点：icon 不够多
+- [CSS triangle generator](http://apps.eky.hk/css-triangle-generator/) 帮你快速用 css 做出三角形
+- [clippy](http://bennettfeely.com/clippy/) 在线帮你使用 css clip-path 做出各种形状的图形
+- [Lorem Picsum](https://picsum.photos/) 提供免费的占位图
+- [Canva 可画](https://www.canva.cn/) 生成插画、封面、海报、头像等
+- [404页](https://error404.fun/) 404页素材
+- [collectui](https://collectui.com/) 按功能组件分类的设计图
+- [smartmockups](https://smartmockups.com/zh) 产品模板生成工具
+
+## 图库
+
+- [uigradients](https://uigradients.com/) 渐变色生成工具
+- [freepik](https://www.freepik.com/) banner 图库
+- [觅元素](http://www.51yuansu.com/)一天免费下载十张 psd（免抠元素）
+- [搞定设计](https://www.gaoding.com/) 可以抠图
+- [vectorizer](https://www.vectorizer.io/) 真正的 png 转 svg 神器
+- [站酷](https://www.zcool.com.cn/) 国内优秀的设计作品展示
+- [花瓣](https://huaban.com/)
+- [虎克](https://huke88.com/) ps 学习教程
+- [beTheme](https://themes.muffingroup.com/be/splash/)
+- [UI 中国](https://www.ui.cn/)
+
+## 有趣
+- [artbreeder](https://www.artbreeder.com/) 动漫图生成真人图像
+- [奇趣网站收藏家](https://fuun.fun/) 收藏了很多有趣的网站
+- [FC在线模拟器(小霸王游戏机)](https://game.xugaoyi.com/) 童年回忆
+- [到账语音生成器](https://zfb.xugaoyi.com/) 支付宝到账1亿元
+- [帮你百度一下](http://www.baidu-x.com/) 可以 [点我测试一下](http://www.baidu-x.com/?q=和谐有爱富强)-
+- [国际版](http://lmgtfy.com/) 同`帮我百度一下`-[点我测试一下](http://lmgtfy.com/?q=a)-
+- [wallhaven](https://alpha.wallhaven.cc/) 壁纸网站-
+- [URL 地址播放 Emojis 动画](http://matthewrayfield.com/articles/animating-urls-with-javascript-and-emojis/#🌖) 在地址栏里面播放 emoji
+- [Can't Unsee](https://cantunsee.space/) 强烈建议前端、客户端、UI 开发的同学玩下，检查一下自己对设计稿的敏感度怎么样
+- [ggtalk](https://talk.swift.gg/) 平时一直在听的一个技术博客
+- [awesome-comment](https://github.com/Blankj/awesome-comment) 里面收集了很多有趣的代码注释
+- [text-img](https://www.text-image.com/index.html) 都将图片转化为 ascii 用来写注释
+- [weird-fonts](https://github.com/beizhedenglong/weird-fonts) 将普通字母转化为 特殊 unicode
+- [snake](https://github.com/epidemian/snake) 在地址栏里面玩贪吃蛇
+- [zero-width-lib](https://github.com/yuanfux/zero-width-lib) 利用零宽度字符实现 隐形水印、加密信息分享、逃脱词匹配，很有创意
+- [abbreviations](https://www.abbreviations.com/) 查看一个简写是什么意思的网站
+- [magi](https://magi.com/) ai 搜索神器，超屌
+- [诺基亚短信图片生成器](https://zzkia.noddl.me:8020/)
+
+## 交互
+
+- [微交互](http://aliscued.lofter.com/) 里面收集了市面上很多很好的微交互例子 值得学习
+- [Little Big Details](http://littlebigdetails.com/) 同上，一个国外微交互汇集网站
+- [cruip](https://cruip.com/) 登录页的各种页面设计，可以免费下载模板
+- [Comixify](https://comixify.ii.pw.edu.pl/) 一个波兰团队做了非常好玩的工具，可以把视频自动转成漫画，上图是他们提供的 demo，效果很棒。
+- [taiko-web](https://github.com/bui/taiko-web) 太鼓达人网页版 只能说很 6
+
+## 教程
+
+- [npx](https://egghead.io/courses/execute-npm-package-binaries-with-the-npx-package-runner) 教你怎么合理的使用 npx
+- [hacksplaining](https://www.hacksplaining.com/lessons) 网络安全学习网站
+- [mobile-web-best-practice](https://github.com/mcuking/mobile-web-best-practice) 移动 web 最佳实践
+
+## 产品
+
+- [产品大牛](http://www.pmdaniu.com/) 什么有很多完整的产品原型可以借鉴
+- [磨刀](https://modao.cc/pricing) 快速出 ui 原型
+
+## 实用
+- [webden](https://webden.dev/) 在线网页编辑器，轻便快捷
+- [browser-update](https://browser-update.org/) 浏览器版本更新提示插件
+- [typeform](https://admin.typeform.com/signup) 一个国外的在线调查问卷网站
+- [VideoFk](https://www.videofk.com/) VideoFk 视频在线解析下载
+- [全历史](https://www.allhistory.com/) 历史内容聚合网站
+- [UzerMe](https://www.uzer.me/) 云端办公工具
+- [SoBooks](https://sobooks.cc/) 强大的电子书资源网站
+- [稿定设计](https://www.gaoding.com/) 键式设计工具+智能抠图
+- [大力盘](https://dalipan.com/) 百度网盘搜索
+- [ENFI 下载器](https://www.macbl.com/app/internet/enfi) 不限速下载器
+- [来画视频](https://www.laihua.com/) 像做 PPT 一样做短视频
+- [Arkie 海报制作工具](https://www.arkie.cn/)
+- [优品 PPT](http://www.ypppt.com/)
+- [比格 PPT](http://www.tretars.com/)
+- [高清免费图片](https://www.pexels.com/)
+- [高清免费图片 2](https://unsplash.com/)
+- [shapedivider](https://www.shapedivider.app/) 生成波浪分隔线
+- [Notion](https://www.notion.so/) 知识库、快速笔记、TaskList、日记、读书清单，各种类型，应有尽有
+## Talk
+
+- [peerigon-talks](https://github.com/peerigon/talks) 收集了不少有意思的 talks
+
+## 算法
+
+- [leetcode](https://github.com/azl397985856/leetcode) 用 js 刷 leetcode
+
+## nginx
+- [nginx 可视化配置工具](https://www.digitalocean.com/community/tools/nginx?global.app.lang=zhCN)
+
+## 生活
+
+- [Ventusky](https://www.ventusky.com/) 风雨气温图
+
+
+---
+
+# 小组件
+
+> 来源: https://ldi123.tk/MyNet/pages/7ab227/
+> 日期: 2023-05-08 00:40:49
+
+#### 微博热搜
+
+<iframe src="https://cn.widgetstore.net/view/index.html?q=f1dedd58625a9b79002b53790b9997aa.fc3eb7a964578fd5000037c8064a22ea"  
+style="width:100%;height:400px;overflow:scroll;"
+/>
+
+#### 天气预报
+<br>
+<iframe 
+src="https://cn.widgetstore.net/view/index.html?q=5a69cbba6343e96e008b8d577a5b4815.0122a5876457bdef0b56c87757d67547" 
+style="width:100%" 
+/>
+
+#### 开心一下
+<br>
+<ToolViews/>
+
+
+---
+
+# 成都
+
+> 来源: https://ldi123.tk/MyNet/pages/0c84c6/
+> 日期: 2022-01-19 16:58:35
+
+成都
+
+终于回来了，这座一毕业就心心念念的城市
+
+<img src="https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/2022年1月19日/9d8eb440ab5d4b13ee96b296dcefd13.4ayapfnnsg60.webp" alt="9d8eb440ab5d4b13ee96b296dcefd13" style="zoom:50%;" />
+
+和济南相距一千多公里的城市
+
+<img src="https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/2022年1月19日/4271c8e1166b63463d47fcb4c7b6259.1co31q3g8y4g.webp" alt="4271c8e1166b63463d47fcb4c7b6259" style="zoom:50%;" />
+
+泉城也是一座温情的城市
+
+只是
+
+<img src="https://cdn.jsdelivr.net/gh/Ldi123/my-image@master/2022年1月19日/9d8eb440ab5d4b13ee96b296dcefd13.4ayapfnnsg60.webp" alt="9d8eb440ab5d4b13ee96b296dcefd13" style="zoom:50%;" />
+
+成都，是偏爱
+
+
+---
+
+# 现代诗
+
+> 来源: https://ldi123.tk/MyNet/pages/3da2b9/
+> 日期: 2022-01-12 10:42:33
+
+### 《门前》
+  （顾城）
+
+我多么希望，有一个门口
+
+早晨，阳光照在草上
+
+我们站着
+
+扶着自己的门扇
+
+门很低，但太阳是明亮的
+
+草在结它的种子
+
+风在摇它的叶子
+
+我们站着，不说话
+
+就十分美好
+
+有门，不用开开
+
+是我们的，就十分美好
+
+早晨，黑夜还要流浪
+
+我们把六弦琴交给他
+
+我们不走了，我们需要
+
+土地，需要永不毁灭的土地
+
+我们要乘着它
+
+度过一生
+
+土地是粗糙的，有时狭隘
+
+然而，它有历史
+
+有一份天空，一份月亮
+
+一份露水和早晨
+
+我们爱土地
+
+我们站着，用木鞋挖着
+
+泥土，门也晒热了
+
+我们轻轻靠着
+
+十分美好
+
+墙后的草
+
+不会再长大了
+
+它只用指尖，触了触阳光
+
+<img src="https://api.kdcc.cn/img/rand.php" />
+（随机美图欣赏）
+​
+
+
+---
+
+# 更新日志
+
+> 来源: https://ldi123.tk/MyNet/pages/2642b4/
+> 日期: 2021-12-16 16:14:33
+
+### 更新日志
+
+##### 2021年12月16日
+
+​	作者信息——头像不显示：代码中使用的是相对路径，但图片展示需要完整路径，因此需要加上
+
+```html
+<img :src="blogger.avatar"/>
+```
+
+​	改为
+
+```html
+<img :src="$withBase(blogger.avatar)"/>
+```
+
+这样在展示的时候就能拼接出完整的图片地址了
+
+##### 2021年12月26日
+
+更新了一些文章
+
+##### 2021年年末
+
+一张壁纸（来源：自己的阿里云服务器）
+
+<img src="http://114.55.7.136:8088/202201/1710cded25114ade8ae39036efe9acd4.png" style="zoom:80%;" />
+
+##### 2022年1月12日
+
+- 升级主题
+
+  - 更新本地主题，本地版本`1.0`，来源版本（vdoing)：`1.9.4`
+- 注：更新主题后为了更好的使用体验需要修改两处主题源码：1.背景图切换时间；2.头像路径
+
+##### 2024年2月4日~2月5日
+
+- 首页优化：去除一些不重要的信息，使得重要内容更加一目了然
+- 针对移动端添加了烟花绽放背景图，pc端更换了背景
+
+##### 2024年2月27日
+- LaTeX 插件用来解析LaTeX 语法的数学公式，暂时没有用到，而且这个插件加载耗时20多秒，所以暂时先注释掉
+- 今晚终于抽空在树莓派部署了一套系统，闲置的树莓派终于不用吃灰了(●'◡'●)
+
+#### 2024年3月5日
+ - 对文章详情页左侧边栏、内容显示区域等进行调整优化，更符合自己的审美
