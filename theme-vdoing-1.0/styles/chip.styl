@@ -115,6 +115,74 @@
 .stat span
   font-size 12.5px
   color var(--text3)
+
+// ===== Hero 身份区 / 移动端重设计 =====
+// 原则：窄屏做减法 —— 去掉胶囊底色与强光圈，把视觉重心交给「名字」；
+// 统计改三列等分 + 细分隔线，保证任何屏幕都恒定一行。
+// 宽屏（>640px）不受影响，仍是胶囊样式。
+@media (max-width 640px)
+  .hero-id
+    gap 11px
+    margin-bottom 14px
+  .hero-avatar
+    width 44px
+    height 44px
+    border-width 2px
+    box-shadow 0 0 0 2px rgba(17, 168, 205, .35), 0 6px 16px -10px rgba(17, 168, 205, .4)
+  .hello-row
+    flex-wrap nowrap
+    gap 6px
+    min-width 0
+  .hello
+    background transparent
+    padding 0
+    border-radius 0
+    gap 7px
+    font-size 15px
+    font-weight 600
+    color var(--textColor)
+    white-space nowrap
+    overflow hidden
+    text-overflow ellipsis
+    max-width 100%
+    .dot
+      width 6px
+      height 6px
+      box-shadow none
+    .me // 名字：这一行里唯一的强调点
+      font-weight 700
+      color var(--festColor, $accentColor)
+  .fest-chip
+    flex-shrink 0
+    font-size 11px
+    font-weight 600
+    padding 3px 9px
+  .id-slogan
+    padding-left 0
+    margin-top 5px
+    font-size 12px
+  .stats
+    display grid
+    grid-template-columns repeat(3, 1fr)
+    gap 0
+    margin-bottom 20px
+    text-align center
+  .stat + .stat
+    border-left 1px solid var(--borderColor)
+  .stat
+    b
+      font-size 19px
+      i
+        font-size 11px
+        margin-left 2px
+    span
+      display block
+      margin-top 2px
+      font-size 11px
+  // 标签数量通常很少，移动端隐藏这一格（需要时删掉本段即可恢复）
+  .stat:nth-child(3)
+    display none
+
 .cta
   display flex
   align-items center

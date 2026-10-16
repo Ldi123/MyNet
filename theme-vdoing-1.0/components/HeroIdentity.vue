@@ -11,7 +11,7 @@
         <div class="hero-id-text">
           <div class="hello-row">
             <span class="hello"
-              ><span class="dot"></span>{{ helloPrefix }}，我是 {{ bloggerName }}</span
+              ><span class="dot"></span>{{ helloPrefix }}，我是 <b class="me">{{ bloggerName }}</b></span
             >
             <span
               class="fest-chip"
