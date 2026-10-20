@@ -32,8 +32,7 @@
           :is="feature.link ? 'router-link' : 'a'"
           class="feature"
           :class="feature.cls || 'f' + (index + 1)"
-          :to="feature.link"
-          :href="feature.link || 'javascript:;'"
+          v-bind="feature.link ? { to: feature.link } : { href: 'javascript:;' }"
           v-for="(feature, index) in homeData.features"
           :key="index"
         >
@@ -65,7 +64,21 @@
       <template #mainLeft>
         <div class="sec-head" v-if="showBanner">
           <h2>最新文章</h2>
-          <router-link to="/archives/">查看全部 →</router-link>
+          <router-link to="/archives/">
+            查看全部
+            <span class="arr">
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path
+                  d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </span>
+          </router-link>
         </div>
 
         <!-- 紧凑（≤640）：推荐卡上移到列表上方 -->
@@ -371,7 +384,7 @@ export default {
   // ===== sec-head =====
   .sec-head
     display flex
-    align-items baseline
+    align-items center
     justify-content space-between
     margin 0.25rem 0.1rem 0.9rem
     h2
@@ -391,12 +404,45 @@ export default {
         border-radius 2px
         background linear-gradient(180deg, var(--festColor, $accentColor), #0B7E9E)
     a
-      font-size 0.82rem
+      display inline-flex
+      align-items center
+      gap 5px
+      height 28px
+      padding 0 10px 0 13px
+      border-radius 999px
+      background linear-gradient(180deg, var(--blurBg), var(--mainBg))
+      backdrop-filter saturate(140%) blur(6px)
+      -webkit-backdrop-filter saturate(140%) blur(6px)
+      border 1px solid var(--borderColor)
+      color var(--textColor)
+      font-size 0.76rem
       font-weight 600
-      color var(--textLightenColor)
-      transition color 0.2s
-      &:hover
+      letter-spacing 0.02em
+      line-height 1
+      box-shadow 0 1px 2px rgba(0, 0, 0, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.12)
+      transition transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.25s, border-color 0.25s
+      .arr
+        display inline-flex
+        align-items center
+        justify-content center
+        width 18px
+        height 18px
+        border-radius 50%
+        background-color var(--chipBg)
         color var(--festColor, $accentColor)
+        transition background-color 0.25s, color 0.25s, transform 0.25s
+        svg
+          display block
+          width 10px
+          height 10px
+      &:hover
+        border-color var(--festColor, $accentColor)
+        box-shadow 0 6px 18px -8px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.12)
+        transform translateY(-1px)
+        .arr
+          background-color var(--festColor, $accentColor)
+          color #fff
+          transform translateX(1px)
 
   .main-wrapper
     margin 0
@@ -434,8 +480,6 @@ export default {
         width 100%
         max-width 420px
         margin 0 auto
-        .rec-card
-          transform none
 
 // ===== ≤640：精简 Hero / features 横滑 =====
 @media (max-width 640px)
@@ -470,6 +514,16 @@ export default {
       padding 1rem 1.1rem 0.9rem
     .sec-head
       margin-bottom 0.75rem
+      a
+        height 26px
+        padding 0 8px 0 11px
+        font-size 0.72rem
+        .arr
+          width 16px
+          height 16px
+          svg
+            width 9px
+            height 9px
     // 紧凑/非紧凑布局改由 CSS 断点切换（原先由 JS mounted 切 v-if，
     // 导致线上首屏先渲染出非紧凑的旧版首页 Hero，挂载后才重排成紧凑布局）
     .hero:not(.hero-sunk)

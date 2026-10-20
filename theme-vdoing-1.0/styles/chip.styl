@@ -245,7 +245,7 @@
   min-width 0
 
 // ===== 随机推荐卡 =====
-// 默认不倾斜；仅 Hero 内右侧卡倾斜（as-list / 手机端始终水平）
+// 不倾斜（as-list / 手机端始终水平）
 .rec-card
   background var(--mainBg)
   border 1px solid var(--borderColor)
@@ -253,17 +253,8 @@
   box-shadow 0 12px 32px -12px rgba(0, 50, 60, 0.18)
   padding 22px 24px 20px
   transform none
-  transition transform 0.35s
-.hero .hero-right .rec-card
-  transform rotate(1.2deg)
-.hero:hover .hero-right .rec-card
-  transform rotate(0deg) translateY(-4px)
 .hero-right.as-list .rec-card
-  transform none
   box-shadow 0 1px 2px 0 rgba(0, 0, 0, 0.05)
-@media (max-width 640px)
-  .rec-card
-    transform none !important
 .rec-head
   display flex
   align-items center

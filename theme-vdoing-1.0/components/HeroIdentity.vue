@@ -71,7 +71,7 @@
 <script>
 import { getActiveFestival } from '@theme/festival'
 
-const SITE_START = new Date('2021-12-08 00:00:00').getTime()
+const SITE_START = new Date(2021, 11, 8).getTime()
 
 export default {
   props: {

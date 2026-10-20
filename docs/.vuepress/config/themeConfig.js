@@ -23,7 +23,10 @@ module.exports = {
   bodyBgImg: [
 		// 原外链图床已不可用（photo.sibnet.ru 403），改为本地自托管（public/img）
 		'/img/bg1.jpg',
-    '/img/bg2.jpg'
+		'/img/bg2.jpg',
+		'/img/bg3.jpg',
+		'/img/bg4.jpg',
+		'/img/bg5.jpg'
   ], // body背景大图，默认无。 单张图片 String || 多张图片 Array, 多张图片时每隔15秒换一张。
   // bodyBgImgOpacity: 0.5, // body背景图透明度，选值 0 ~ 1.0, 默认0.5
 

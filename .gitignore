@@ -23,3 +23,6 @@ baiduPush.yml
 
 # 自定义代码提交脚本
 up_essay.sh
+
+# 设计稿（本地预览，不入库）
+design/

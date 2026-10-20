@@ -17,6 +17,16 @@
 </template>
 
 <script>
+// Safari 无法解析 '2026-09-06 00:00:00' 这类空格分隔格式，回退为斜杠格式
+function toDate (d) {
+  if (d instanceof Date) return d
+  let date = new Date(d)
+  if (isNaN(date.getTime()) && typeof d === 'string') {
+    date = new Date(d.replace(/-/g, '/'))
+  }
+  return date
+}
+
 export default {
   computed: {
     post () {
@@ -29,7 +39,7 @@ export default {
     },
     category () {
       const fm = (this.post && this.post.frontmatter) || {}
-      const c = fm.category
+      const c = fm.categories || fm.category
       if (!c) return ''
       return Array.isArray(c) ? c[0] : c
     },
@@ -37,14 +47,16 @@ export default {
       const fm = (this.post && this.post.frontmatter) || {}
       const d = fm.date
       if (!d) return ''
-      const date = d instanceof Date ? d : new Date(d)
+      const date = toDate(d)
+      if (isNaN(date.getTime())) return ''
       const pad = n => (n < 10 ? '0' + n : '' + n)
       return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate())
     },
     ago () {
       const fm = (this.post && this.post.frontmatter) || {}
       if (!fm.date) return ''
-      const target = fm.date instanceof Date ? fm.date : new Date(fm.date)
+      const target = toDate(fm.date)
+      if (isNaN(target.getTime())) return ''
       const today = new Date()
       today.setHours(0, 0, 0, 0)
       const days = Math.round((today.getTime() - target.getTime()) / 86400000)
